@@ -17,15 +17,17 @@ DATA_PROCESSED = PROJECT_ROOT / "data" / "processed"
 ASSETS_CHARTS = PROJECT_ROOT / "assets" / "charts"
 
 # Styling
-EPHESUS_COLOR = "#2E86AB"  # Blue - highlight color
+EPHESUS_COLOR = "#e6031b"   # Red - highlight color
 EXCEEDED_COLOR = "#28A745"  # Green - exceeded expectations
 MET_COLOR = "#FFC107"       # Yellow - met expectations
 NOT_MET_COLOR = "#DC3545"   # Red - did not meet
 NEUTRAL_COLOR = "#C0C0C0"   # Gray - other schools
-ACCENT_COLOR = "#F18F01"    # Orange - accent
-AFFORDABLE_COLOR = "#2E86AB"  # Blue - affordable housing
-MARKET_COLOR = "#A23B72"      # Magenta - market-rate housing
+ACCENT_COLOR = "#b8020f"    # Dark red - accent
+AFFORDABLE_COLOR = "#e6031b"  # Red - affordable housing
+MARKET_COLOR = "#666666"      # Gray - market-rate housing
 
+plt.rcParams['font.family'] = 'sans-serif'
+plt.rcParams['font.sans-serif'] = ['Segoe UI', 'Tahoma', 'DejaVu Sans']
 plt.style.use('seaborn-v0_8-whitegrid')
 sns.set_palette([EPHESUS_COLOR, EXCEEDED_COLOR, NEUTRAL_COLOR])
 
@@ -216,7 +218,7 @@ def create_demographics_chart():
                            label='Minority Enrollment %', color=MARKET_COLOR, alpha=0.8)
 
     # Highlight Ephesus with GOLD border/background (same colors, but stands out)
-    GOLD_COLOR = "#FFD700"
+    GOLD_COLOR = "#e6031b"
     frl_bars[0].set_edgecolor(GOLD_COLOR)
     frl_bars[0].set_linewidth(3)
     frl_bars[0].set_alpha(1.0)
@@ -299,7 +301,7 @@ def create_keep_vs_close_chart():
     ax.annotate(f'Avoided closure costs:\n$3.3M over 20 years',
                 xy=(10, -27), xytext=(10, -27),
                 fontsize=10, ha='center',
-                bbox=dict(boxstyle='round', facecolor='#e3f2fd', alpha=0.9))
+                bbox=dict(boxstyle='round', facecolor='#fef0f0', alpha=0.9))
 
     ax.set_xlabel("Years", fontsize=12, fontweight='bold')
     ax.set_ylabel("Cumulative Cost Position (Million $)", fontsize=12, fontweight='bold')

@@ -69,6 +69,7 @@ save_ephesus/
 │   ├── visualizations.py        # Chart generation
 │   └── report_generator.py      # HTML/PDF report
 ├── assets/charts/               # Generated charts
+├── assets/logos/                # School logo (ephesus-logo.png)
 ├── templates/
 │   └── report_template.html     # Final report HTML
 ├── output/

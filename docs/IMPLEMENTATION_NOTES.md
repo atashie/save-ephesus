@@ -4,6 +4,54 @@ This document captures the implementation details, research findings, and verifi
 
 ---
 
+## Section 0: Visual Restyling (January 2026)
+
+### Color Palette: Blue → Red Branding
+
+Adopted the Ephesus Elementary school website color palette (bold red) to replace the original blue academic theme.
+
+| Role | Old | New |
+|------|-----|-----|
+| Primary (headings, stat-boxes, table headers, callout borders) | `#2E86AB` | `#e6031b` |
+| Secondary accent (h3) | `#A23B72` | `#b8020f` |
+| Callout/highlight background | `#f0f7fa` / `#e3f2fd` | `#fef9f9` / `#fef0f0` |
+| Recommendation border/bg | `#4CAF50` / `#e8f5e9` | `#e6031b` / `#fef9f9` |
+| Recommendation h3 | `#2E7D32` | `#b8020f` |
+| Highlight class bg | `#fff3cd` | `#fce4e4` |
+| Chart: MARKET_COLOR | `#A23B72` | `#666666` |
+| Semantic colors (verified green, warning orange, not-met red) | unchanged | unchanged |
+
+### Font Change
+
+- CSS: `Georgia, serif` → `'Segoe UI', Tahoma, Geneva, Verdana, sans-serif`
+- Matplotlib: Added `plt.rcParams['font.family'] = 'sans-serif'` with Segoe UI / Tahoma / DejaVu Sans
+
+### CSS Tweaks
+
+| Property | Old | New |
+|----------|-----|-----|
+| `body line-height` | 1.5 | 1.7 |
+| `h2 border-bottom` | 1px solid #ddd | 2px solid #e6031b |
+| `.stat-box border-radius` | 5px | 12px |
+| `.stat-box` | — | `box-shadow: 0 2px 8px rgba(230,3,27,0.15)` |
+| `.callout` | — | `border-radius: 8px` |
+| `.recommendation border-radius` | 5px | 12px |
+| `.recommendation` | — | `box-shadow: 0 2px 8px rgba(230,3,27,0.1)` |
+
+### School Logo
+
+Added `assets/logos/ephesus-logo.png` (red roadrunner mascot) centered below the h1 title on the first page.
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `src/visualizations.py` | Color constants updated; font rcParams added |
+| `src/report_generator.py` | CSS colors/font/spacing; logo image; inline highlight row colors |
+| `templates/report_template.html` | Same CSS/inline updates; logo image |
+
+---
+
 ## Section 1: Changelog (January 2026 Updates)
 
 ### Removals
@@ -174,8 +222,9 @@ python src/report_generator.py
 
 | File | Changes Made |
 |------|-------------|
-| `src/visualizations.py` | Fixed demographics chart colors; updated Longleaf Trace to 150 units; removed keep_vs_close chart |
-| `src/report_generator.py` | Updated housing table (150 units); removed Figure 5; made "Request for the Board" concise |
+| `src/visualizations.py` | Fixed demographics chart colors; updated Longleaf Trace to 150 units; removed keep_vs_close chart; red branding + sans-serif font |
+| `src/report_generator.py` | Updated housing table (150 units); removed Figure 5; made "Request for the Board" concise; red branding + logo + sans-serif font |
+| `templates/report_template.html` | Red branding + logo + sans-serif font (matches report_generator.py) |
 | `docs/key_messages.md` | Updated Request for the Board (concise version) |
 | `docs/IMPLEMENTATION_NOTES.md` | Created (this file) |
 | `CLAUDE.md` | Updated file structure section |

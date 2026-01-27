@@ -58,33 +58,33 @@ def generate_report_html():
         }}
 
         body {{
-            font-family: 'Georgia', serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             font-size: 11pt;
-            line-height: 1.5;
+            line-height: 1.7;
             color: #333;
             max-width: 7in;
             margin: 0 auto;
         }}
 
         h1 {{
-            color: #2E86AB;
+            color: #e6031b;
             font-size: 24pt;
             text-align: center;
             margin-bottom: 0.5em;
-            border-bottom: 3px solid #2E86AB;
+            border-bottom: 3px solid #e6031b;
             padding-bottom: 0.5em;
         }}
 
         h2 {{
-            color: #2E86AB;
+            color: #e6031b;
             font-size: 16pt;
             margin-top: 1.5em;
-            border-bottom: 1px solid #ddd;
+            border-bottom: 2px solid #e6031b;
             padding-bottom: 0.25em;
         }}
 
         h3 {{
-            color: #A23B72;
+            color: #b8020f;
             font-size: 13pt;
             margin-top: 1em;
         }}
@@ -97,10 +97,11 @@ def generate_report_html():
         }}
 
         .callout {{
-            background-color: #f0f7fa;
-            border-left: 4px solid #2E86AB;
+            background-color: #fef9f9;
+            border-left: 4px solid #e6031b;
             padding: 1em;
             margin: 1em 0;
+            border-radius: 8px;
         }}
 
         .callout-warning {{
@@ -110,12 +111,13 @@ def generate_report_html():
 
         .stat-box {{
             display: inline-block;
-            background-color: #2E86AB;
+            background-color: #e6031b;
             color: white;
             padding: 0.5em 1em;
             margin: 0.5em;
-            border-radius: 5px;
+            border-radius: 12px;
             text-align: center;
+            box-shadow: 0 2px 8px rgba(230,3,27,0.15);
         }}
 
         .stat-number {{
@@ -147,7 +149,7 @@ def generate_report_html():
         }}
 
         th {{
-            background-color: #2E86AB;
+            background-color: #e6031b;
             color: white;
         }}
 
@@ -187,7 +189,7 @@ def generate_report_html():
         }}
 
         .highlight {{
-            background-color: #fff3cd;
+            background-color: #fce4e4;
             padding: 0.2em 0.4em;
         }}
 
@@ -200,15 +202,16 @@ def generate_report_html():
         }}
 
         .recommendation {{
-            background-color: #e8f5e9;
-            border: 2px solid #4CAF50;
+            background-color: #fef9f9;
+            border: 2px solid #e6031b;
             padding: 1em;
             margin: 1.5em 0;
-            border-radius: 5px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(230,3,27,0.1);
         }}
 
         .recommendation h3 {{
-            color: #2E7D32;
+            color: #b8020f;
             margin-top: 0;
         }}
 
@@ -230,6 +233,9 @@ def generate_report_html():
 
     <!-- PAGE 1: EXECUTIVE SUMMARY -->
     <h1>Don't Close Ephesus Elementary</h1>
+    <div style="text-align: center; margin: 1em 0;">
+        <img src="{str((PROJECT_ROOT / 'assets' / 'logos' / 'ephesus-logo.png').absolute())}" alt="Ephesus Elementary Logo" style="height: 120px;">
+    </div>
     <p class="subtitle">A Data-Driven Case for Keeping Our Neighborhood School Open</p>
     <p class="subtitle">Submitted to the Chapel Hill-Carrboro City Schools Board of Education<br>
     {datetime.now().strftime("%B %Y")}</p>
@@ -319,7 +325,7 @@ def generate_report_html():
             <td>87.3</td>
             <td class="verified">Exceeded</td>
         </tr>
-        <tr style="background-color: #e3f2fd;">
+        <tr style="background-color: #fef0f0;">
             <td><strong>4</strong></td>
             <td><strong>Ephesus</strong></td>
             <td><strong>85.8</strong></td>
@@ -468,13 +474,13 @@ def generate_report_html():
             <td>Affordable (planned)</td>
             <td style="font-style: italic;">Planned 2027-29</td>
         </tr>
-        <tr style="background-color: #e3f2fd;">
+        <tr style="background-color: #fef0f0;">
             <td><strong>Total (built)</strong></td>
             <td><strong>563</strong></td>
             <td>149 affordable (26%)</td>
             <td></td>
         </tr>
-        <tr style="background-color: #e3f2fd;">
+        <tr style="background-color: #fef0f0;">
             <td><strong>Total (with planned)</strong></td>
             <td><strong>713</strong></td>
             <td>299 affordable (42%)</td>
@@ -521,7 +527,7 @@ def generate_report_html():
             <td>-$60K to -$150K/year</td>
             <td>National benchmarks*</td>
         </tr>
-        <tr style="background-color: #e3f2fd;">
+        <tr style="background-color: #fef0f0;">
             <td><strong>Net annual savings</strong></td>
             <td><strong>~$1.53M/year</strong></td>
             <td></td>
@@ -575,7 +581,7 @@ def generate_report_html():
             <th>Change 2019-2025</th>
             <th>Projected Change 2025-2036</th>
         </tr>
-        <tr style="background-color: #e3f2fd;">
+        <tr style="background-color: #fef0f0;">
             <td><strong>Ephesus</strong></td>
             <td>-46</td>
             <td><strong>+21</strong></td>
