@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html>
+<head>
+    
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/css/bootstrap.min.css"/>
+    <link rel="stylesheet" href="https://netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap-glyphicons.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.2.0/css/all.min.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/python-visualization/folium/folium/templates/leaflet.awesome.rotate.min.css"/>
+    
+            <meta name="viewport" content="width=device-width,
+                initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+            <style>
+                #map_62b6946334f5f19ce8ae925440e776ba {
+                    position: relative;
+                    width: 100.0%;
+                    height: 100.0%;
+                    left: 0.0%;
+                    top: 0.0%;
+                }
+                .leaflet-container { font-size: 1rem; }
+            </style>
+
+            <style>html, body {
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                padding: 0;
+            }
+            </style>
+
+            <style>#map {
+                position:absolute;
+                top:0;
+                bottom:0;
+                right:0;
+                left:0;
+                }
+            </style>
+
+            <script>
+                L_NO_TOUCH = false;
+                L_DISABLE_3D = false;
+            </script>
+
+        
+</head>
+<body>
+    
+    
+    <div style="position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
+                z-index: 1000; background-color: white; padding: 10px 20px;
+                border-radius: 5px; box-shadow: 2px 2px 5px rgba(0,0,0,0.3);">
+        <h3 style="margin: 0;">CHCCS Elementary Schools: Status Comparison</h3>
+        <p style="margin: 5px 0 0 0; font-size: 12px; color: #666;">
+            Numbers show students within 0.5-mile walking distance
+        </p>
+    </div>
+    
+    
+            <div class="folium-map" id="map_62b6946334f5f19ce8ae925440e776ba" ></div>
+        
+</body>
+<script>
+    
+    
+            var map_62b6946334f5f19ce8ae925440e776ba = L.map(
+                "map_62b6946334f5f19ce8ae925440e776ba",
+                {
+                    center: [35.9132, -79.0558],
+                    crs: L.CRS.EPSG3857,
+                    ...{
+  "zoom": 12,
+  "zoomControl": true,
+  "preferCanvas": false,
+}
+
+                }
+            );
+
+            
+
+        
+    
+            var tile_layer_06200be66a2e615a28ab3c8467bc406c = L.tileLayer(
+                "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+                {
+  "minZoom": 0,
+  "maxZoom": 20,
+  "maxNativeZoom": 20,
+  "noWrap": false,
+  "attribution": "\u0026copy; \u003ca href=\"https://www.openstreetmap.org/copyright\"\u003eOpenStreetMap\u003c/a\u003e contributors \u0026copy; \u003ca href=\"https://carto.com/attributions\"\u003eCARTO\u003c/a\u003e",
+  "subdomains": "abcd",
+  "detectRetina": false,
+  "tms": false,
+  "opacity": 1,
+}
+
+            );
+        
+    
+            tile_layer_06200be66a2e615a28ab3c8467bc406c.addTo(map_62b6946334f5f19ce8ae925440e776ba);
+        
+    
+            var feature_group_d21e442b5a8b119d587bcd1e4b6885ef = L.featureGroup(
+                {
+}
+            );
+        
+    
+            var marker_1b6ea31a9d1d8f39e8214f2fbfbf3d94 = L.marker(
+                [35.9372, -79.0178],
+                {
+}
+            ).addTo(feature_group_d21e442b5a8b119d587bcd1e4b6885ef);
+        
+    
+            var div_icon_86782ca1bf3c2db05ca9615ad14c045b = L.divIcon({
+  "html": "\n                \u003cdiv style=\"background-color: #2E86AB; color: white; padding: 5px 10px;\n                            border-radius: 15px; font-weight: bold; white-space: nowrap;\n                            box-shadow: 2px 2px 5px rgba(0,0,0,0.3);\"\u003e\n                    99\n                \u003c/div\u003e\n                ",
+  "iconSize": [50, 30],
+  "iconAnchor": [25, 15],
+  "className": "empty",
+});
+        
+    
+        var popup_4e2ecf51e8ff3265d40e43e3e28ac7d6 = L.popup({
+  "maxWidth": 250,
+});
+
+        
+            
+                var html_27b217df1756113a53ff0ea450ce7c5c = $(`<div id="html_27b217df1756113a53ff0ea450ce7c5c" style="width: 100.0%; height: 100.0%;">         <b>Ephesus Elementary</b><br>         Walkable Students: <b>99</b><br>         Highest walkability in district         </div>`)[0];
+                popup_4e2ecf51e8ff3265d40e43e3e28ac7d6.setContent(html_27b217df1756113a53ff0ea450ce7c5c);
+            
+        
+
+        marker_1b6ea31a9d1d8f39e8214f2fbfbf3d94.bindPopup(popup_4e2ecf51e8ff3265d40e43e3e28ac7d6)
+        ;
+
+        
+    
+    
+                marker_1b6ea31a9d1d8f39e8214f2fbfbf3d94.setIcon(div_icon_86782ca1bf3c2db05ca9615ad14c045b);
+            
+    
+            feature_group_d21e442b5a8b119d587bcd1e4b6885ef.addTo(map_62b6946334f5f19ce8ae925440e776ba);
+        
+    
+            var feature_group_6a1e5b5cce533ff74fe3ae81e38c12ac = L.featureGroup(
+                {
+}
+            );
+        
+    
+            var marker_ab7324d120aa398d56eb5f38618835b7 = L.marker(
+                [35.9128, -79.0589],
+                {
+}
+            ).addTo(feature_group_6a1e5b5cce533ff74fe3ae81e38c12ac);
+        
+    
+            var div_icon_982da7b67c8f6d7ad1656eb6043176c5 = L.divIcon({
+  "html": "\n                \u003cdiv style=\"background-color: #E74C3C; color: white; padding: 5px 10px;\n                            border-radius: 15px; font-weight: bold; white-space: nowrap;\n                            box-shadow: 2px 2px 5px rgba(0,0,0,0.3);\"\u003e\n                    65\n                \u003c/div\u003e\n                ",
+  "iconSize": [50, 30],
+  "iconAnchor": [25, 15],
+  "className": "empty",
+});
+        
+    
+        var popup_17ed377b3fffc4d7e7981e6d980de6ce = L.popup({
+  "maxWidth": 250,
+});
+
+        
+            
+                var html_4a05503db8854e7628858b7b0620d0c8 = $(`<div id="html_4a05503db8854e7628858b7b0620d0c8" style="width: 100.0%; height: 100.0%;">         <b>Glenwood Elementary</b><br>         Walkable Students: <b>65</b><br>         Slated for closure         </div>`)[0];
+                popup_17ed377b3fffc4d7e7981e6d980de6ce.setContent(html_4a05503db8854e7628858b7b0620d0c8);
+            
+        
+
+        marker_ab7324d120aa398d56eb5f38618835b7.bindPopup(popup_17ed377b3fffc4d7e7981e6d980de6ce)
+        ;
+
+        
+    
+    
+                marker_ab7324d120aa398d56eb5f38618835b7.setIcon(div_icon_982da7b67c8f6d7ad1656eb6043176c5);
+            
+    
+            var marker_6861c6fcbbeee4a7776bf08f9bc8ce25 = L.marker(
+                [35.9033, -79.0817],
+                {
+}
+            ).addTo(feature_group_6a1e5b5cce533ff74fe3ae81e38c12ac);
+        
+    
+            var div_icon_8f44f3d7ba497aa0cf2d536dc7342745 = L.divIcon({
+  "html": "\n                \u003cdiv style=\"background-color: #E74C3C; color: white; padding: 5px 10px;\n                            border-radius: 15px; font-weight: bold; white-space: nowrap;\n                            box-shadow: 2px 2px 5px rgba(0,0,0,0.3);\"\u003e\n                    45\n                \u003c/div\u003e\n                ",
+  "iconSize": [50, 30],
+  "iconAnchor": [25, 15],
+  "className": "empty",
+});
+        
+    
+        var popup_6c9741eae9cb1ab9a7e21f4c4e966031 = L.popup({
+  "maxWidth": 250,
+});
+
+        
+            
+                var html_fca8d9646aebcbb5a80b24e5592f94cb = $(`<div id="html_fca8d9646aebcbb5a80b24e5592f94cb" style="width: 100.0%; height: 100.0%;">         <b>Seawell Elementary</b><br>         Walkable Students: <b>45</b><br>         Slated for closure         </div>`)[0];
+                popup_6c9741eae9cb1ab9a7e21f4c4e966031.setContent(html_fca8d9646aebcbb5a80b24e5592f94cb);
+            
+        
+
+        marker_6861c6fcbbeee4a7776bf08f9bc8ce25.bindPopup(popup_6c9741eae9cb1ab9a7e21f4c4e966031)
+        ;
+
+        
+    
+    
+                marker_6861c6fcbbeee4a7776bf08f9bc8ce25.setIcon(div_icon_8f44f3d7ba497aa0cf2d536dc7342745);
+            
+    
+            feature_group_6a1e5b5cce533ff74fe3ae81e38c12ac.addTo(map_62b6946334f5f19ce8ae925440e776ba);
+        
+    
+            var feature_group_68c7f98e70bc482e6f17dce121492d27 = L.featureGroup(
+                {
+}
+            );
+        
+    
+            var marker_d5584845d1f411dd92a13357c9c9de70 = L.marker(
+                [35.9103, -79.0753],
+                {
+}
+            ).addTo(feature_group_68c7f98e70bc482e6f17dce121492d27);
+        
+    
+            var div_icon_1aaa4c86e401a3c584f9d2189a68bbad = L.divIcon({
+  "html": "\n                \u003cdiv style=\"background-color: #F39C12; color: white; padding: 5px 10px;\n                            border-radius: 15px; font-weight: bold; white-space: nowrap;\n                            box-shadow: 2px 2px 5px rgba(0,0,0,0.3);\"\u003e\n                    58\n                \u003c/div\u003e\n                ",
+  "iconSize": [50, 30],
+  "iconAnchor": [25, 15],
+  "className": "empty",
+});
+        
+    
+        var popup_a43e0e636ee34109f6a4e9ae2a1ce86e = L.popup({
+  "maxWidth": 250,
+});
+
+        
+            
+                var html_22c46ccd9a4facd4d8ecac2ea759eeae = $(`<div id="html_22c46ccd9a4facd4d8ecac2ea759eeae" style="width: 100.0%; height: 100.0%;">         <b>Carrboro Elementary</b><br>         Walkable Students: <b>58</b><br>         Bond funding for replacement (built 1959)         </div>`)[0];
+                popup_a43e0e636ee34109f6a4e9ae2a1ce86e.setContent(html_22c46ccd9a4facd4d8ecac2ea759eeae);
+            
+        
+
+        marker_d5584845d1f411dd92a13357c9c9de70.bindPopup(popup_a43e0e636ee34109f6a4e9ae2a1ce86e)
+        ;
+
+        
+    
+    
+                marker_d5584845d1f411dd92a13357c9c9de70.setIcon(div_icon_1aaa4c86e401a3c584f9d2189a68bbad);
+            
+    
+            var marker_ee65e6bfc5e8664d34fae21e676cb94a = L.marker(
+                [35.9442, -79.0467],
+                {
+}
+            ).addTo(feature_group_68c7f98e70bc482e6f17dce121492d27);
+        
+    
+            var div_icon_8aa36e563548b3e2131ff4a2a78830e3 = L.divIcon({
+  "html": "\n                \u003cdiv style=\"background-color: #F39C12; color: white; padding: 5px 10px;\n                            border-radius: 15px; font-weight: bold; white-space: nowrap;\n                            box-shadow: 2px 2px 5px rgba(0,0,0,0.3);\"\u003e\n                    52\n                \u003c/div\u003e\n                ",
+  "iconSize": [50, 30],
+  "iconAnchor": [25, 15],
+  "className": "empty",
+});
+        
+    
+        var popup_308b16e3e0eaa62fa776c97428bfde55 = L.popup({
+  "maxWidth": 250,
+});
+
+        
+            
+                var html_d6821e23daff14cee1dcc751fea13af6 = $(`<div id="html_d6821e23daff14cee1dcc751fea13af6" style="width: 100.0%; height: 100.0%;">         <b>Estes Hills Elementary</b><br>         Walkable Students: <b>52</b><br>         Bond funding for replacement (built 1958)         </div>`)[0];
+                popup_308b16e3e0eaa62fa776c97428bfde55.setContent(html_d6821e23daff14cee1dcc751fea13af6);
+            
+        
+
+        marker_ee65e6bfc5e8664d34fae21e676cb94a.bindPopup(popup_308b16e3e0eaa62fa776c97428bfde55)
+        ;
+
+        
+    
+    
+                marker_ee65e6bfc5e8664d34fae21e676cb94a.setIcon(div_icon_8aa36e563548b3e2131ff4a2a78830e3);
+            
+    
+            var marker_676e808da2aba0353b1b2daf938f1484 = L.marker(
+                [35.9285, -79.0392],
+                {
+}
+            ).addTo(feature_group_68c7f98e70bc482e6f17dce121492d27);
+        
+    
+            var div_icon_c94630aad1c2d7cfe5b405aade868958 = L.divIcon({
+  "html": "\n                \u003cdiv style=\"background-color: #F39C12; color: white; padding: 5px 10px;\n                            border-radius: 15px; font-weight: bold; white-space: nowrap;\n                            box-shadow: 2px 2px 5px rgba(0,0,0,0.3);\"\u003e\n                    48\n                \u003c/div\u003e\n                ",
+  "iconSize": [50, 30],
+  "iconAnchor": [25, 15],
+  "className": "empty",
+});
+        
+    
+        var popup_21c031717cb543769165e4be471e6d05 = L.popup({
+  "maxWidth": 250,
+});
+
+        
+            
+                var html_215499b249a51a3ec02d7d52d6502e6a = $(`<div id="html_215499b249a51a3ec02d7d52d6502e6a" style="width: 100.0%; height: 100.0%;">         <b>Frank Porter Graham</b><br>         Walkable Students: <b>48</b><br>         Bond funding for replacement (built 1962)         </div>`)[0];
+                popup_21c031717cb543769165e4be471e6d05.setContent(html_215499b249a51a3ec02d7d52d6502e6a);
+            
+        
+
+        marker_676e808da2aba0353b1b2daf938f1484.bindPopup(popup_21c031717cb543769165e4be471e6d05)
+        ;
+
+        
+    
+    
+                marker_676e808da2aba0353b1b2daf938f1484.setIcon(div_icon_c94630aad1c2d7cfe5b405aade868958);
+            
+    
+            feature_group_68c7f98e70bc482e6f17dce121492d27.addTo(map_62b6946334f5f19ce8ae925440e776ba);
+        
+    
+            var feature_group_6f60d859839d8fdda222301aa2ba4891 = L.featureGroup(
+                {
+}
+            );
+        
+    
+            var marker_da2493e2b67221b6497ba06dcbdb0ba2 = L.marker(
+                [35.9225, -79.0567],
+                {
+}
+            ).addTo(feature_group_6f60d859839d8fdda222301aa2ba4891);
+        
+    
+            var div_icon_1564d2eb752b3781b99307e28fc6abd9 = L.divIcon({
+  "html": "\n                \u003cdiv style=\"background-color: #95A5A6; color: white; padding: 5px 10px;\n                            border-radius: 15px; font-weight: bold; white-space: nowrap;\n                            box-shadow: 2px 2px 5px rgba(0,0,0,0.3);\"\u003e\n                    72\n                \u003c/div\u003e\n                ",
+  "iconSize": [50, 30],
+  "iconAnchor": [25, 15],
+  "className": "empty",
+});
+        
+    
+        var popup_47e8510443589a80f2487ca75da8bd2c = L.popup({
+  "maxWidth": 250,
+});
+
+        
+            
+                var html_d728840cd78afd140916c8a7df5d5122 = $(`<div id="html_d728840cd78afd140916c8a7df5d5122" style="width: 100.0%; height: 100.0%;">         <b>Northside Elementary</b><br>         Walkable Students: <b>72</b><br>                  </div>`)[0];
+                popup_47e8510443589a80f2487ca75da8bd2c.setContent(html_d728840cd78afd140916c8a7df5d5122);
+            
+        
+
+        marker_da2493e2b67221b6497ba06dcbdb0ba2.bindPopup(popup_47e8510443589a80f2487ca75da8bd2c)
+        ;
+
+        
+    
+    
+                marker_da2493e2b67221b6497ba06dcbdb0ba2.setIcon(div_icon_1564d2eb752b3781b99307e28fc6abd9);
+            
+    
+            var marker_02bf1b86347cc53c860d1553cb09a91e = L.marker(
+                [35.8983, -79.0453],
+                {
+}
+            ).addTo(feature_group_6f60d859839d8fdda222301aa2ba4891);
+        
+    
+            var div_icon_6f82c8b852a6ce259bd2b9afc0788cec = L.divIcon({
+  "html": "\n                \u003cdiv style=\"background-color: #95A5A6; color: white; padding: 5px 10px;\n                            border-radius: 15px; font-weight: bold; white-space: nowrap;\n                            box-shadow: 2px 2px 5px rgba(0,0,0,0.3);\"\u003e\n                    38\n                \u003c/div\u003e\n                ",
+  "iconSize": [50, 30],
+  "iconAnchor": [25, 15],
+  "className": "empty",
+});
+        
+    
+        var popup_a78aa7560b23da9748e37e6e4e152c9e = L.popup({
+  "maxWidth": 250,
+});
+
+        
+            
+                var html_17b946077fdc90bb26cdb6a46676c3bd = $(`<div id="html_17b946077fdc90bb26cdb6a46676c3bd" style="width: 100.0%; height: 100.0%;">         <b>McDougle Elementary</b><br>         Walkable Students: <b>38</b><br>                  </div>`)[0];
+                popup_a78aa7560b23da9748e37e6e4e152c9e.setContent(html_17b946077fdc90bb26cdb6a46676c3bd);
+            
+        
+
+        marker_02bf1b86347cc53c860d1553cb09a91e.bindPopup(popup_a78aa7560b23da9748e37e6e4e152c9e)
+        ;
+
+        
+    
+    
+                marker_02bf1b86347cc53c860d1553cb09a91e.setIcon(div_icon_6f82c8b852a6ce259bd2b9afc0788cec);
+            
+    
+            var marker_7a0f852b58bbb5130f3e131412968210 = L.marker(
+                [35.8775, -79.0308],
+                {
+}
+            ).addTo(feature_group_6f60d859839d8fdda222301aa2ba4891);
+        
+    
+            var div_icon_6701937518310800ae5c1d6c3a4b8f88 = L.divIcon({
+  "html": "\n                \u003cdiv style=\"background-color: #95A5A6; color: white; padding: 5px 10px;\n                            border-radius: 15px; font-weight: bold; white-space: nowrap;\n                            box-shadow: 2px 2px 5px rgba(0,0,0,0.3);\"\u003e\n                    32\n                \u003c/div\u003e\n                ",
+  "iconSize": [50, 30],
+  "iconAnchor": [25, 15],
+  "className": "empty",
+});
+        
+    
+        var popup_16a51f24e347ac225bfa3e68be5dd4cb = L.popup({
+  "maxWidth": 250,
+});
+
+        
+            
+                var html_4075a6af443d4f84c3c64e2a2b206d4c = $(`<div id="html_4075a6af443d4f84c3c64e2a2b206d4c" style="width: 100.0%; height: 100.0%;">         <b>Morris Grove Elementary</b><br>         Walkable Students: <b>32</b><br>                  </div>`)[0];
+                popup_16a51f24e347ac225bfa3e68be5dd4cb.setContent(html_4075a6af443d4f84c3c64e2a2b206d4c);
+            
+        
+
+        marker_7a0f852b58bbb5130f3e131412968210.bindPopup(popup_16a51f24e347ac225bfa3e68be5dd4cb)
+        ;
+
+        
+    
+    
+                marker_7a0f852b58bbb5130f3e131412968210.setIcon(div_icon_6701937518310800ae5c1d6c3a4b8f88);
+            
+    
+            var marker_f6ca4f0828ab13a7ddbbdffa966a1a39 = L.marker(
+                [35.8817, -79.0692],
+                {
+}
+            ).addTo(feature_group_6f60d859839d8fdda222301aa2ba4891);
+        
+    
+            var div_icon_4240eb1ad695fa9b294cab0b5b4a73f0 = L.divIcon({
+  "html": "\n                \u003cdiv style=\"background-color: #95A5A6; color: white; padding: 5px 10px;\n                            border-radius: 15px; font-weight: bold; white-space: nowrap;\n                            box-shadow: 2px 2px 5px rgba(0,0,0,0.3);\"\u003e\n                    28\n                \u003c/div\u003e\n                ",
+  "iconSize": [50, 30],
+  "iconAnchor": [25, 15],
+  "className": "empty",
+});
+        
+    
+        var popup_cd0d909cf987589c628ed67e5a291d40 = L.popup({
+  "maxWidth": 250,
+});
+
+        
+            
+                var html_81b9e400b1cad9e0c8c589e5edf322fc = $(`<div id="html_81b9e400b1cad9e0c8c589e5edf322fc" style="width: 100.0%; height: 100.0%;">         <b>Rashkis Elementary</b><br>         Walkable Students: <b>28</b><br>                  </div>`)[0];
+                popup_cd0d909cf987589c628ed67e5a291d40.setContent(html_81b9e400b1cad9e0c8c589e5edf322fc);
+            
+        
+
+        marker_f6ca4f0828ab13a7ddbbdffa966a1a39.bindPopup(popup_cd0d909cf987589c628ed67e5a291d40)
+        ;
+
+        
+    
+    
+                marker_f6ca4f0828ab13a7ddbbdffa966a1a39.setIcon(div_icon_4240eb1ad695fa9b294cab0b5b4a73f0);
+            
+    
+            var marker_ed8de0ca4a46ca3bb8c827bc1a90079e = L.marker(
+                [35.865, -79.0433],
+                {
+}
+            ).addTo(feature_group_6f60d859839d8fdda222301aa2ba4891);
+        
+    
+            var div_icon_3de2ced4ce0f1da79eea0c8c30497b6c = L.divIcon({
+  "html": "\n                \u003cdiv style=\"background-color: #95A5A6; color: white; padding: 5px 10px;\n                            border-radius: 15px; font-weight: bold; white-space: nowrap;\n                            box-shadow: 2px 2px 5px rgba(0,0,0,0.3);\"\u003e\n                    25\n                \u003c/div\u003e\n                ",
+  "iconSize": [50, 30],
+  "iconAnchor": [25, 15],
+  "className": "empty",
+});
+        
+    
+        var popup_d1745622b6ac0993f7ea6afce69b7f0d = L.popup({
+  "maxWidth": 250,
+});
+
+        
+            
+                var html_2f34af04d684371f811c3ca0ae194fdd = $(`<div id="html_2f34af04d684371f811c3ca0ae194fdd" style="width: 100.0%; height: 100.0%;">         <b>Scroggs Elementary</b><br>         Walkable Students: <b>25</b><br>                  </div>`)[0];
+                popup_d1745622b6ac0993f7ea6afce69b7f0d.setContent(html_2f34af04d684371f811c3ca0ae194fdd);
+            
+        
+
+        marker_ed8de0ca4a46ca3bb8c827bc1a90079e.bindPopup(popup_d1745622b6ac0993f7ea6afce69b7f0d)
+        ;
+
+        
+    
+    
+                marker_ed8de0ca4a46ca3bb8c827bc1a90079e.setIcon(div_icon_3de2ced4ce0f1da79eea0c8c30497b6c);
+            
+    
+            feature_group_6f60d859839d8fdda222301aa2ba4891.addTo(map_62b6946334f5f19ce8ae925440e776ba);
+        
+    
+            var layer_control_4dbc8df09d5e244bd5700489180ec86e_layers = {
+                base_layers : {
+                    "cartodbpositron" : tile_layer_06200be66a2e615a28ab3c8467bc406c,
+                },
+                overlays :  {
+                    "Ephesus (Highest Walkability)" : feature_group_d21e442b5a8b119d587bcd1e4b6885ef,
+                    "Slated for Closure" : feature_group_6a1e5b5cce533ff74fe3ae81e38c12ac,
+                    "Bond Funded (Built 1958-1962)" : feature_group_68c7f98e70bc482e6f17dce121492d27,
+                    "Other Schools" : feature_group_6f60d859839d8fdda222301aa2ba4891,
+                },
+            };
+            let layer_control_4dbc8df09d5e244bd5700489180ec86e = L.control.layers(
+                layer_control_4dbc8df09d5e244bd5700489180ec86e_layers.base_layers,
+                layer_control_4dbc8df09d5e244bd5700489180ec86e_layers.overlays,
+                {
+  "position": "topright",
+  "collapsed": true,
+  "autoZIndex": true,
+}
+            ).addTo(map_62b6946334f5f19ce8ae925440e776ba);
+
+        
+</script>
+</html>
