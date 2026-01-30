@@ -23,7 +23,8 @@ Persuasive PDF report for the CHCCS Board of Education arguing for keeping Ephes
 ## Key Arguments (Summary)
 
 ### 1. Walkable Community School
-- 99 students walk to school* (parent-reported)
+- **#1 most walkable** elementary school in district ✓
+- 99 students within 0.5 miles (24.7% of enrollment) ✓
 - Closing = more buses (~$66K/year added cost)
 
 ### 2. Academic Excellence
@@ -40,7 +41,20 @@ Persuasive PDF report for the CHCCS Board of Education arguing for keeping Ephes
 - 30-36% free/reduced lunch ✓
 - 50% minority enrollment ✓
 
+### 5. Teacher Survey Results (NC TWC Survey 2024) ✓
+- **97.67%** of teachers say students follow conduct rules (+29 pts vs district) ✓
+- **Zero incidents** of violence threats, cyberbullying, weapons, drugs ✓
+- Physical conflicts **5x lower** than district average (7% vs 36%) ✓
+- **97.67%** say it's a good place to work (+6 pts vs district) ✓
+- **97.67%** say parents know what's going on (+13 pts vs district) ✓
+
 > **See `docs/RESEARCH_DATA.md` for detailed data tables and sources.**
+>
+> **See `data/processed/teacher_survey_analysis.md` for full teacher survey analysis.**
+>
+> **See `data/processed/bond_presentation_2024.md` for district decision-making framework and evaluation criteria.**
+>
+> **See `data/processed/safe_routes_analysis.md` for walkability data and infrastructure plans.**
 
 ---
 
@@ -56,6 +70,10 @@ Persuasive PDF report for the CHCCS Board of Education arguing for keeping Ephes
 | Closure savings | ~$1.7M/year | ✓ Verified |
 | Net savings after costs | ~$1.53M/year | ✓ Calculated |
 | Renovation estimate | $28.9M (Woolpert) | ✓ Verified |
+| Students follow conduct rules | 97.67% (+29 pts vs district) | ✓ NC TWC Survey 2024 |
+| Physical conflicts rate | 6.98% (5x lower than district) | ✓ NC TWC Survey 2024 |
+| Teacher satisfaction | 97.67% "good place to work" | ✓ NC TWC Survey 2024 |
+| Walkability rank | #1 (24.7% within 0.5 mi) | ✓ Safe Routes 2025 |
 
 ---
 
@@ -74,6 +92,12 @@ save_ephesus/
 │   └── report_template.html     # Final report HTML
 ├── output/
 │   └── ephesus_report.pdf
+├── data/
+│   ├── raw/
+│   │   └── teacher_surveys/          # NC TWC Survey 2024 CSV files
+│   └── processed/
+│       ├── bond_presentation_2024.md  # Bond decision framework
+│       └── teacher_survey_analysis.md # Teacher survey findings
 └── docs/
     ├── key_messages.md          # Talking points and sound bites
     ├── RESEARCH_DATA.md         # Detailed data tables and sources

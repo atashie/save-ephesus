@@ -6,12 +6,12 @@
 ## Three Core Messages
 
 ### 1. Ephesus is a Walkable Community School
-- **99 students** walk to school* (*parent-reported)
+- **#1 most walkable** elementary school (24.7% within 0.5 mi, 99 students verified)
 - Closing Ephesus means more buses (~$57K-$75K/year), more emissions
 - Teachers and staff live in the neighborhood they serve
 - Generational ties: teachers who taught parents now teach children
 
-**Sound bite:** "Ephesus isn't just a school building - it's the heart of a walkable community."
+**Sound bite:** "Ephesus is the #1 most walkable school in the district—and that matters for families without cars."
 
 **District criteria support:** The 2024 Bond Presentation (Slide 36) explicitly evaluates walkability impact as Maintained/Reduced/Not available. See `data/processed/bond_presentation_2024.md`.
 
@@ -23,7 +23,18 @@
 
 **Sound bite:** "Our students are thriving. Why close a school that's succeeding?"
 
-### 3. Ephesus Aligns with Community Investment
+### 3. Ephesus Has Exceptional School Climate
+- **98% of teachers say students follow conduct rules** - 29 points above district average
+- **Zero reported incidents** of violence threats, cyberbullying, weapons, or drugs
+- **Physical conflicts 5x lower** than district average (7% vs 36%)
+- **98% of teachers say Ephesus is a good place to work** (+6 pts vs district)
+- **98% say parents know what's going on** (+13 pts vs district)
+
+**Sound bite:** "Zero violence threats. Zero weapons. Zero drugs. Teachers and parents agree: Ephesus works."
+
+**Source:** NC Teacher Working Conditions Survey 2024 (43 respondents)
+
+### 4. Ephesus Aligns with Community Investment
 - **713 housing units** near Ephesus (563 built + 150 planned at Longleaf Trace)
 - Town of Chapel Hill invested in walkable, affordable communities
 - Closing Ephesus undermines these strategic investments
@@ -73,9 +84,13 @@ We respectfully request the Board to:
 
 | Metric | Value | Context |
 |--------|-------|---------|
-| Students who walk | 99* | *Parent-reported |
+| Walkability rank | #1 (24.7%) | Safe Routes 2025 (verified) |
+| Students within 0.5 mi | 99 | Town of Chapel Hill GIS (verified) |
 | Academic growth ranking | #4 of 11 | 2023-24, "Exceeded" status |
 | Academic growth score | 85.8 | NC Report Cards (verified) |
+| Students follow conduct rules | 97.67% | +29 pts vs district (NC TWC Survey) |
+| Physical conflicts | 6.98% | 5x lower than district (NC TWC Survey) |
+| Violence/weapons/drugs | 0% | Zero incidents (NC TWC Survey) |
 | Free/reduced lunch | 30-36% | Title I school (verified) |
 | Minority enrollment | 50% | Diverse community (verified) |
 | EC Pre-K staff | 2 of 3 | Critical concentration |

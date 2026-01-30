@@ -4,7 +4,63 @@ This document captures the implementation details, research findings, and verifi
 
 ---
 
-## Section 0: Visual Restyling (January 2026)
+## Section 0: Teacher Survey Integration (January 2026)
+
+### Overview
+
+Integrated NC Teacher Working Conditions Survey 2024 data to strengthen the case with verified teacher feedback.
+
+### Key Findings Added
+
+| Metric | Ephesus | District | Difference |
+|--------|---------|----------|------------|
+| Students follow conduct rules | 97.67% | 68.83% | +29 pts |
+| Physical conflicts | 6.98% | 36.38% | 5x fewer |
+| Violence threats | 0% | 15.54% | Zero |
+| Cyberbullying | 0% | 27.43% | Zero |
+| Weapons possession | 0% | 9.05% | Zero |
+| Drug/tobacco use | 0% | 28.42% | Zero |
+| Good place to work | 97.67% | 91.25% | +6 pts |
+| Parents know what's going on | 97.67% | 84.86% | +13 pts |
+
+### Files Created
+
+| File | Purpose |
+|------|---------|
+| `data/processed/teacher_survey_analysis.md` | Full analysis document with all metrics |
+| `assets/charts/teacher_survey_conduct.png` | Bar chart: conduct metrics comparison |
+| `assets/charts/teacher_survey_problems.png` | Bar chart: behavioral problems (lower=better) |
+| `assets/charts/teacher_survey_community.png` | Bar chart: community engagement |
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `src/visualizations.py` | Added 3 new chart functions for teacher survey data |
+| `src/report_generator.py` | Added "School Climate & Safety" section; updated exec summary; added reference #16 |
+| `CLAUDE.md` | Added teacher survey to Key Arguments and Verified Summary Data |
+| `docs/RESEARCH_DATA.md` | Added full Teacher Survey Data section with tables |
+| `docs/key_messages.md` | Added School Climate message with sound bites |
+| `docs/executive_summary.md` | Added Key Statistics and School Climate section |
+
+### Report Changes
+
+1. **Executive Summary stat boxes**: Updated to show conduct (+29 pts) and zero violence
+2. **Executive Summary bullets**: Added "exceptional school climate" point
+3. **"What Makes Ephesus Successful"**: Now data-backed with survey citations
+4. **NEW Section**: "School Climate & Safety" page with chart and table
+5. **Community Impact**: Added parent engagement data (+13 pts)
+6. **References**: Added #16 for NC TWC Survey 2024
+
+### Source Data
+
+- Raw CSV files: `data/raw/teacher_surveys/ephesus_elementary_*.csv`
+- District comparison: `data/raw/teacher_surveys/chccs_district_*.csv`
+- Survey website: https://nctwcs.org/
+
+---
+
+## Section 0b: Visual Restyling (January 2026)
 
 ### Color Palette: Blue → Red Branding
 
@@ -247,10 +303,40 @@ python src/report_generator.py
 
 ---
 
+## Section 7: Safe Routes Integration (January 2026)
+
+### Key Data Integrated from Safe Routes to School Action Plan
+
+| Finding | Value | Source |
+|---------|-------|--------|
+| Walkability rank | #1 in district | Safe Routes Action Plan |
+| Students within 0.5 mi | 99 (24.7%) | Town of Chapel Hill GIS, Feb 2025 |
+| Active transportation rate | 78 students (20%) | Field tally, Nov 2024 |
+| Households without vehicles | 1,100+ | 2023 Census |
+| Distance as barrier | 66% cite as #1 | 2024 Intent Survey (5,524 families) |
+| Town infrastructure projects | 12 planned | Safe Routes Action Plan |
+
+### Report Template Changes
+
+- Executive Summary: Added "#1 Most Walkable" stat box
+- Executive Summary: Updated "99" stat (removed asterisk, now verified)
+- Walkability section: Added #1 ranking callout, comparison table, equity context
+- Equity section: Added new demographics (14.7% SWD, 13% ML, 35.8% SED)
+- Transportation section: Added Vision Zero context, survey findings
+- References: Added Safe Routes to School Action Plan (ref #17)
+
+### Walkability Data Status Change
+
+| Before | After |
+|--------|-------|
+| 99* (parent-reported) | 99 ✓ (verified by Town of Chapel Hill GIS, Feb 2025) |
+
+---
+
 ## Attribution
 
 This report was developed with assistance from Claude (Anthropic) for data organization, visualization code, and document drafting. All claims have been independently verified against official sources.
 
 ---
 
-*Last updated: January 2026*
+*Last updated: January 29, 2026*
