@@ -148,6 +148,19 @@ Added `assets/logos/ephesus-logo.png` (red roadrunner mascot) centered below the
 - Chapelboro: https://chapelboro.com/news/local-government/chapel-hill-shares-latest-pond-removal-construction-timeline-for-legion-road-housing-and-park-project
 - Daily Tar Heel: https://www.dailytarheel.com/article/2024/09/city-longleaf-trace-tax-credit-award-chapel-hill-affordable-housing
 
+### District Decision Framework (2024 Bond Presentation)
+
+The 2024 Bond Presentation establishes the official evaluation criteria used for facility decisions.
+
+| Criterion | Relevance to Ephesus |
+|-----------|---------------------|
+| Walkability impact | Explicit evaluation metric (Maintained/Reduced/Not available) |
+| Transportation impact | Bus routes, ride time, traffic - all worsen with closure |
+| Student displacement | Ephesus (~390-410 students) = Yellow category (200-450) |
+| Community values | Slide 15: "Maintain walkability and minimize disruption" |
+
+**Source:** `data/processed/bond_presentation_2024.md`
+
 ---
 
 ## Section 3: Full References
@@ -228,6 +241,7 @@ python src/report_generator.py
 | `docs/key_messages.md` | Updated Request for the Board (concise version) |
 | `docs/IMPLEMENTATION_NOTES.md` | Created (this file) |
 | `CLAUDE.md` | Updated file structure section |
+| `data/processed/bond_presentation_2024.md` | Processed bond presentation data; district decision framework |
 
 ---
 

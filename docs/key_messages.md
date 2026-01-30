@@ -13,6 +13,8 @@
 
 **Sound bite:** "Ephesus isn't just a school building - it's the heart of a walkable community."
 
+**District criteria support:** The 2024 Bond Presentation (Slide 36) explicitly evaluates walkability impact as Maintained/Reduced/Not available. See `data/processed/bond_presentation_2024.md`.
+
 ### 2. Ephesus Delivers Academic Excellence
 - **Among top 4 in academic growth** (4th of 11, growth score 85.8, "Exceeded" status)
 - Title I school achieving exceptional results
