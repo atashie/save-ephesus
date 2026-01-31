@@ -55,6 +55,8 @@ Persuasive PDF report for the CHCCS Board of Education arguing for keeping Ephes
 > **See `data/processed/bond_presentation_2024.md` for district decision-making framework and evaluation criteria.**
 >
 > **See `data/processed/safe_routes_analysis.md` for walkability data and infrastructure plans.**
+>
+> **See `data/processed/enrollment_history.csv` for 35-year enrollment data (1990-2024) for all 11 schools, with sources in `enrollment_history_sources.md`.**
 
 ---
 
@@ -97,7 +99,9 @@ save_ephesus/
 │   │   └── teacher_surveys/          # NC TWC Survey 2024 CSV files
 │   └── processed/
 │       ├── bond_presentation_2024.md  # Bond decision framework
-│       └── teacher_survey_analysis.md # Teacher survey findings
+│       ├── teacher_survey_analysis.md # Teacher survey findings
+│       ├── enrollment_history.csv     # 35-year enrollment (1990-2024)
+│       └── enrollment_history_sources.md # Data sources for enrollment
 └── docs/
     ├── key_messages.md          # Talking points and sound bites
     ├── RESEARCH_DATA.md         # Detailed data tables and sources
