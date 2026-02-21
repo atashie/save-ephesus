@@ -537,21 +537,30 @@ def rasterize_grid(
     row_indices = np.clip(((maxlat - lats) / dlat).astype(int), 0, nrows - 1)
     values_2d[row_indices, col_indices] = vals
 
-    # Fill NaN gaps from grid rotation + network routing failures.
-    # Iteratively replace each NaN that borders valid data with the
-    # mean of its non-NaN neighbors (3×3 window).  Three passes cover
-    # gaps up to ~6 px wide (filling inward from both sides).
+    # Track which pixels have ANY grid point (including routing NaNs).
+    # This lets us distinguish rotation gaps (no grid point mapped here)
+    # from routing gaps (grid point exists but Dijkstra found no path).
+    all_lats = grid_df["lat"].values
+    all_lons = grid_df["lon"].values
+    has_point = np.zeros((nrows, ncols), dtype=bool)
+    all_col_idx = np.clip(((all_lons - minlon) / dlon).astype(int), 0, ncols - 1)
+    all_row_idx = np.clip(((maxlat - all_lats) / dlat).astype(int), 0, nrows - 1)
+    has_point[all_row_idx, all_col_idx] = True
+
+    # Fill ONLY rotation gaps: NaN pixels with no grid point assigned.
+    # These are ~1 pixel wide from UTM→WGS84 coordinate misalignment.
+    # Routing NaN gaps (where Dijkstra found no path) are preserved.
     from scipy.ndimage import uniform_filter
-    for _ in range(3):
-        mask = np.isnan(values_2d)
-        if not mask.any():
+    for _ in range(2):
+        rotation_gap = np.isnan(values_2d) & ~has_point
+        if not rotation_gap.any():
             break
-        # mean of non-NaN values in 3×3 window
-        filled = np.where(mask, 0.0, values_2d)
-        counts = uniform_filter((~mask).astype(np.float64), size=3, mode='constant', cval=0.0)
+        filled = np.where(np.isnan(values_2d), 0.0, values_2d)
+        valid_mask = ~np.isnan(values_2d)
+        counts = uniform_filter(valid_mask.astype(np.float64), size=3, mode='constant', cval=0.0)
         smoothed = uniform_filter(filled.astype(np.float64), size=3, mode='constant', cval=0.0)
         has_neighbor = counts > 0
-        fillable = mask & has_neighbor
+        fillable = rotation_gap & has_neighbor
         values_2d[fillable] = (smoothed[fillable] / counts[fillable]).astype(np.float32)
 
     # Mask out pixels whose centers fall outside the district polygon

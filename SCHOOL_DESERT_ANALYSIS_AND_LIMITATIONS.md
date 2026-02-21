@@ -104,7 +104,7 @@ Grid points (irregularly spaced in WGS84 due to UTM→WGS84 reprojection) are bi
 
 1. **Cell size** is computed from the 100m resolution: `dlat = 100 / 111320` degrees, `dlon = 100 / (111320 × cos(center_lat))` degrees. This ensures pixels are approximately 100m × 100m at the center of the district.
 2. Each grid point is assigned to its containing pixel via integer index arithmetic.
-3. **Gap filling:** NaN pixels surrounded by valid data (caused by UTM→WGS84 coordinate rotation and network routing failures) are filled using 3 iterations of mean-of-neighbors smoothing with a 3×3 window (`scipy.ndimage.uniform_filter`). Each iteration fills NaN cells that border at least one valid cell with the mean of their valid neighbors.
+3. **Gap filling (rotation gaps only):** NaN pixels caused by UTM→WGS84 coordinate rotation (where no grid point maps to the pixel) are filled using 2 iterations of mean-of-neighbors smoothing with a 3×3 window (`scipy.ndimage.uniform_filter`). NaN pixels from Dijkstra routing failures (where a grid point exists but no school was reachable) are intentionally preserved as transparent. The two gap types are distinguished by tracking which pixels received any grid point assignment.
 4. **District boundary masking:** After gap filling, every pixel center is tested for containment within the CHCCS district polygon. Pixels outside the polygon are set back to NaN. This prevents the gap fill from bleeding color outside the district boundary.
 5. **Colorization:** The value raster is mapped to RGBA using matplotlib colormaps. NaN cells become fully transparent (alpha=0); data cells get alpha=210/255. Absolute time layers use `RdYlGn_r` (green=close, red=far). Delta layers use `Oranges` (white=no change, dark orange=large increase).
 6. **Encoding:** The RGBA image is saved as a base64 PNG for embedding in the HTML map. The raw float32 values are also base64-encoded for the hover tooltip lookup.
@@ -176,7 +176,7 @@ Each grid point is snapped to the **single nearest network node** using Euclidea
 
 ### 4. Dijkstra Routing Gaps
 
-Some grid points receive NaN travel times because the network node they snapped to is unreachable from all schools. This happens primarily in the **reversed drive network** (16 NaN points per drive scenario, 6 per bike, 0 for walk) where isolated one-way road segments have no inbound path from any school. These NaN gaps are filled by the mean-of-neighbors interpolation during rasterization, but the interpolated values are estimates, not routed travel times.
+Some grid points receive NaN travel times because the network node they snapped to is unreachable from all schools. This happens primarily in the **reversed drive network** (16 NaN points per drive scenario, 6 per bike, 0 for walk) where isolated one-way road segments have no inbound path from any school. These NaN gaps are **intentionally preserved** in the heatmap as transparent pixels — they represent real routing failures, not missing data. On the map, they appear as small holes (typically a few pixels) in the heatmap interior.
 
 ### 5. UTM-to-WGS84 Grid Rotation
 
