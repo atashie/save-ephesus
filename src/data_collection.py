@@ -178,27 +178,11 @@ def create_housing_data():
     return housing_data
 
 
-def create_school_locations():
-    """Create school location data for mapping."""
-    # Approximate coordinates for CHCCS elementary schools
-    locations = pd.DataFrame([
-        {"school": "Ephesus Elementary", "lat": 35.9372, "lon": -79.0178, "address": "1495 Ephesus Church Rd"},
-        {"school": "Carrboro Elementary", "lat": 35.9103, "lon": -79.0753, "address": "400 Shelton St"},
-        {"school": "Estes Hills Elementary", "lat": 35.9442, "lon": -79.0467, "address": "500 Estes Dr Ext"},
-        {"school": "Frank Porter Graham Bilingue", "lat": 35.9285, "lon": -79.0392, "address": "101 Smith Level Rd"},
-        {"school": "Glenwood Elementary", "lat": 35.9128, "lon": -79.0589, "address": "211 N Greensboro St"},
-        {"school": "McDougle Elementary", "lat": 35.8983, "lon": -79.0453, "address": "900 Old Fayetteville Rd"},
-        {"school": "Morris Grove Elementary", "lat": 35.8775, "lon": -79.0308, "address": "215 Eubanks Rd"},
-        {"school": "Northside Elementary", "lat": 35.9225, "lon": -79.0567, "address": "330 Caldwell St"},
-        {"school": "Rashkis Elementary", "lat": 35.8817, "lon": -79.0692, "address": "601 Meadowmont Ln"},
-        {"school": "Scroggs Elementary", "lat": 35.8650, "lon": -79.0433, "address": "501 Kildaire Farm Rd"},
-        {"school": "Seawell Elementary", "lat": 35.9033, "lon": -79.0817, "address": "200 Seawell School Rd"},
-    ])
-
-    locations.to_csv(DATA_PROCESSED / "school_locations.csv", index=False)
-    print(f"Created: {DATA_PROCESSED / 'school_locations.csv'}")
-
-    return locations
+# NOTE: create_school_locations() has been REMOVED. The old function contained
+# fabricated "approximate" coordinates that were wrong by up to 11.8 km.
+# School locations are now downloaded from the NCES EDGE 2023-24 API by
+# src/road_pollution.py:download_school_locations() and cached at
+# data/cache/nces_school_locations.csv. Do NOT recreate this function.
 
 
 def create_sources_documentation():
@@ -289,10 +273,9 @@ def main():
     print("\n2. Creating housing data...")
     create_housing_data()
 
-    print("\n3. Creating school locations...")
-    create_school_locations()
+    # School locations now come from NCES (see road_pollution.py)
 
-    print("\n4. Creating sources documentation...")
+    print("\n3. Creating sources documentation...")
     create_sources_documentation()
 
     print("\n" + "=" * 60)

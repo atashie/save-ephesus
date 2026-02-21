@@ -847,6 +847,34 @@ def generate_pdf(html_path):
         return None
 
 
+def generate_docx(html_path, output_path):
+    """Convert HTML report to Word document using pypandoc."""
+    try:
+        import pypandoc
+        pypandoc.convert_file(
+            str(html_path),
+            'docx',
+            outputfile=str(output_path),
+            extra_args=['--standalone']
+        )
+        print(f"Created: {output_path}")
+        return output_path
+    except ImportError:
+        print("pypandoc not available. Install with: pip install pypandoc")
+        print("Note: Pandoc must also be installed on your system.")
+        return None
+    except OSError as e:
+        if "pandoc" in str(e).lower():
+            print("Pandoc not found. Install from https://pandoc.org/installing.html")
+            print("Or run: pypandoc.download_pandoc() in Python")
+        else:
+            print(f"DOCX generation failed: {e}")
+        return None
+    except Exception as e:
+        print(f"DOCX generation failed: {e}")
+        return None
+
+
 def main():
     """Generate the complete report with VERIFIED data."""
     print("=" * 60)
@@ -889,11 +917,18 @@ def main():
     print("\nGenerating PDF...")
     pdf_path = generate_pdf(html_path)
 
+    # Generate DOCX
+    print("\nGenerating Word document...")
+    docx_path = OUTPUT / "ephesus_report.docx"
+    docx_result = generate_docx(html_path, docx_path)
+
     print("\n" + "=" * 60)
     print("Report generation complete!")
     print(f"\nHTML template: {html_path}")
     if pdf_path:
         print(f"PDF report: {pdf_path}")
+    if docx_result:
+        print(f"Word document: {docx_result}")
     else:
         print("\nTo create PDF manually:")
         print(f"  1. Open {html_path} in a web browser")

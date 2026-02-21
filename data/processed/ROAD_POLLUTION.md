@@ -92,44 +92,46 @@ P_net = P_raw * (1 - f_mitigation)
 
 | Rank | School | Raw Index | Canopy % | Mitigation % | Net Index | Net (Normalized) |
 |------|--------|-----------|----------|-------------|-----------|-----------------|
-| 1 | Glenwood Elementary | 19.29 | 2.8% | 1.6% | 18.99 | 100.0 |
-| 2 | Frank Porter Graham Bilingue | 17.61 | 8.7% | 4.9% | 16.75 | 88.2 |
-| 3 | Carrboro Elementary | 4.42 | 0.0% | 0.0% | 4.42 | 23.3 |
-| 4 | Scroggs Elementary | 4.68 | 20.5% | 11.5% | 4.14 | 21.8 |
-| 5 | Estes Hills Elementary | 2.93 | 0.9% | 0.5% | 2.92 | 15.4 |
-| 6 | McDougle Elementary | 3.13 | 20.6% | 11.6% | 2.77 | 14.6 |
-| 7 | Morris Grove Elementary | 3.72 | 88.8% | 49.7% | 1.87 | 9.9 |
-| 8 |  **Ephesus Elementary** | 1.72 | 0.6% | 0.4% | 1.71 | 9.0 |
-| 9 | Northside Elementary | 1.17 | 0.0% | 0.0% | 1.17 | 6.1 |
-| 10 | Seawell Elementary | 0.79 | 72.8% | 40.7% | 0.47 | 2.5 |
-| 11 | Rashkis Elementary | 0.18 | 27.6% | 15.4% | 0.15 | 0.8 |
+| 1 | Glenwood Elementary | 19.29 | 61.0% | 34.2% | 12.70 | 100.0 |
+| 2 | Frank Porter Graham Bilingue | 17.61 | 72.4% | 40.6% | 10.47 | 82.4 |
+| 3 | Scroggs Elementary | 4.68 | 65.9% | 36.9% | 2.95 | 23.3 |
+| 4 | Carrboro Elementary | 4.42 | 76.0% | 42.6% | 2.54 | 20.0 |
+| 5 | McDougle Elementary | 3.13 | 72.6% | 40.7% | 1.86 | 14.6 |
+| 6 | Morris Grove Elementary | 3.72 | 91.1% | 51.0% | 1.82 | 14.4 |
+| 7 | Estes Hills Elementary | 2.93 | 93.5% | 52.3% | 1.40 | 11.0 |
+| 8 |  **Ephesus Elementary** | 1.72 | 81.7% | 45.8% | 0.93 | 7.3 |
+| 9 | New FPG Location | 1.34 | 80.9% | 45.3% | 0.73 | 5.8 |
+| 10 | Northside Elementary | 1.17 | 84.3% | 47.2% | 0.62 | 4.9 |
+| 11 | Seawell Elementary | 0.79 | 82.1% | 46.0% | 0.43 | 3.4 |
+| 12 | Rashkis Elementary | 0.18 | 71.1% | 39.8% | 0.11 | 0.8 |
 
 ## Results: 1000m Radius
 
 | Rank | School | Raw Index | Canopy % | Mitigation % | Net Index | Net (Normalized) |
 |------|--------|-----------|----------|-------------|-----------|-----------------|
-| 1 | Glenwood Elementary | 23.99 | 13.6% | 7.6% | 22.16 | 100.0 |
-| 2 | Frank Porter Graham Bilingue | 22.16 | 2.2% | 1.2% | 21.89 | 98.8 |
-| 3 | Carrboro Elementary | 8.11 | 2.2% | 1.2% | 8.01 | 36.1 |
-| 4 |  **Ephesus Elementary** | 7.13 | 2.1% | 1.2% | 7.04 | 31.8 |
-| 5 | Scroggs Elementary | 8.78 | 48.4% | 27.1% | 6.40 | 28.9 |
-| 6 | Northside Elementary | 5.56 | 2.1% | 1.2% | 5.49 | 24.8 |
-| 7 | Estes Hills Elementary | 4.19 | 7.5% | 4.2% | 4.02 | 18.1 |
-| 8 | McDougle Elementary | 4.42 | 29.2% | 16.3% | 3.70 | 16.7 |
-| 9 | Morris Grove Elementary | 5.01 | 92.8% | 52.0% | 2.40 | 10.8 |
-| 10 | Seawell Elementary | 2.03 | 68.7% | 38.5% | 1.25 | 5.6 |
-| 11 | Rashkis Elementary | 0.63 | 30.3% | 17.0% | 0.52 | 2.4 |
+| 1 | Glenwood Elementary | 23.99 | 69.8% | 39.1% | 14.61 | 100.0 |
+| 2 | Frank Porter Graham Bilingue | 22.16 | 80.2% | 44.9% | 12.20 | 83.5 |
+| 3 | Scroggs Elementary | 8.78 | 83.2% | 46.6% | 4.69 | 32.1 |
+| 4 | Carrboro Elementary | 8.11 | 75.5% | 42.3% | 4.68 | 32.0 |
+| 5 | New FPG Location | 8.56 | 84.4% | 47.3% | 4.51 | 30.9 |
+| 6 |  **Ephesus Elementary** | 7.13 | 73.0% | 40.9% | 4.22 | 28.9 |
+| 7 | Northside Elementary | 5.56 | 67.9% | 38.0% | 3.45 | 23.6 |
+| 8 | McDougle Elementary | 4.42 | 80.4% | 45.0% | 2.43 | 16.6 |
+| 9 | Morris Grove Elementary | 5.01 | 93.6% | 52.4% | 2.38 | 16.3 |
+| 10 | Estes Hills Elementary | 4.19 | 92.5% | 51.8% | 2.02 | 13.8 |
+| 11 | Seawell Elementary | 2.03 | 85.3% | 47.8% | 1.06 | 7.2 |
+| 12 | Rashkis Elementary | 0.63 | 77.2% | 43.2% | 0.36 | 2.4 |
 
 ---
 
 ## Ephesus Elementary Summary
 
-- **500m raw rank:** #8 of 11
-- **500m net rank (after canopy):** #8 of 11
-- **1000m raw rank:** #5 of 11
-- **1000m net rank (after canopy):** #4 of 11
-- **Tree canopy (500m):** 0.6%
-- **Tree canopy (1000m):** 2.1%
+- **500m raw rank:** #8 of 12
+- **500m net rank (after canopy):** #8 of 12
+- **1000m raw rank:** #6 of 12
+- **1000m net rank (after canopy):** #6 of 12
+- **Tree canopy (500m):** 81.7%
+- **Tree canopy (1000m):** 73.0%
 
 ### Context
 
@@ -197,7 +199,7 @@ academic performance; 9 of 10 found a negative association.
 
 ### Ephesus Context
 
-Ephesus ranks #8 of 11 in raw pollution exposure at 500m — in the lower third of
+Ephesus ranks #8 of 12 in raw pollution exposure at 500m — in the lower third of
 district schools. This is a moderate position; schools like
 Glenwood (19.29) and FPG (17.61) face pollution indices roughly
 10x higher than Ephesus (1.72).
@@ -244,11 +246,11 @@ exposure. This argument applies regardless of Ephesus's relative pollution ranki
 4. **Wind patterns, terrain, and building effects** are not modeled. These
    factors significantly influence actual pollutant dispersion.
 5. **Temporal variation** (rush hour, seasonal) is not captured.
-6. **CRITICAL: IO LULC urban canopy limitation.** The Impact Observatory 10m
+6. **CRITICAL: ESA WorldCover urban canopy limitation.** The ESA WorldCover 10m
    land cover classifies each pixel into a single dominant class. In suburban
    areas like Chapel Hill (which has ~55% city-wide tree canopy per American
    Forests estimates), neighborhoods with scattered trees along streets and in
-   yards are classified as "Built Area" (class 7) rather than "Trees" (class 2).
+   yards are classified as "Built-up" (class 50) rather than "Tree cover" (class 10).
    This means **tree canopy mitigation is significantly underestimated for urban
    and suburban schools** (most show 0% canopy within 500m) while being
    accurately captured for schools near contiguous forest. A high-resolution

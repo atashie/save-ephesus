@@ -8,8 +8,8 @@ mitigation analysis.
 Methodology:
 - Road Pollution Index uses exponential decay from road segments, weighted by
   road classification as a proxy for traffic volume (NOT actual AADT counts)
-- Tree canopy mitigation based on literature meta-analyses of urban vegetation
-  air quality effects (NOT Chapel Hill-specific measurements)
+- Tree canopy mitigation using ESA WorldCover V2 2021 (10m), based on literature
+  meta-analyses of urban vegetation air quality effects (NOT Chapel Hill-specific)
 - Index is RELATIVE/COMPARATIVE, not an absolute health risk assessment
 
 Literature basis:
@@ -56,7 +56,7 @@ ASSETS_MAPS = PROJECT_ROOT / "assets" / "maps"
 
 SCHOOL_CSV = DATA_CACHE / "nces_school_locations.csv"
 ROAD_CACHE = DATA_CACHE / "osm_roads_orange_county.gpkg"
-LULC_CACHE = DATA_CACHE / "io_lulc_orange_county.tif"
+LULC_CACHE = DATA_CACHE / "esa_worldcover_orange_county.tif"
 ASSETS_MAPS_DEBUG = ASSETS_MAPS / "debug"
 
 # ---------------------------------------------------------------------------
@@ -87,6 +87,9 @@ ROAD_WEIGHTS = {
 # Literature: Nowak et al. (2014) meta-analysis
 ALPHA = 0.56
 MAX_MITIGATION = 0.80  # cap at 80% maximum reduction
+
+# ESA WorldCover V2 2021: Tree cover = class 10
+TREE_CLASS = 10
 
 # Analysis radii (meters)
 RADII = [500, 1000]
@@ -147,6 +150,18 @@ def ensure_directories():
 def _progress(msg: str):
     """Print a progress message."""
     print(f"  ... {msg}")
+
+
+def _score_to_color(normalized_score: float) -> str:
+    """Convert a normalized TRAP score (0-100) to a hex color on green→yellow→red gradient."""
+    val = max(0.0, min(1.0, normalized_score / 100.0))
+    if val < 0.5:
+        r = int(255 * (val / 0.5))
+        g = 200
+    else:
+        r = 255
+        g = int(200 * (1 - (val - 0.5) / 0.5))
+    return f"#{r:02x}{g:02x}00"
 
 
 # ---------------------------------------------------------------------------
@@ -263,8 +278,21 @@ def download_school_locations(cache_only: bool = False) -> Path:
 
 
 def load_schools() -> gpd.GeoDataFrame:
-    """Load the 11 CHCCS elementary schools from CSV."""
+    """Load CHCCS elementary schools from CSV + hypothetical locations."""
     df = pd.read_csv(SCHOOL_CSV)
+
+    # Append hypothetical "New FPG Location" at Culbreth Middle School site
+    # (NCES ID 370072000301, 225 Culbreth Rd, Chapel Hill)
+    new_fpg = pd.DataFrame([{
+        "nces_id": "hypothetical_new_fpg",
+        "school": "New FPG Location",
+        "lat": 35.8898,
+        "lon": -79.0675,
+        "address": "225 Culbreth Rd",
+        "city": "Chapel Hill",
+    }])
+    df = pd.concat([df, new_fpg], ignore_index=True)
+
     gdf = gpd.GeoDataFrame(
         df,
         geometry=gpd.points_from_xy(df["lon"], df["lat"]),
@@ -399,14 +427,15 @@ def calculate_raw_pollution(
 
 
 # ---------------------------------------------------------------------------
-# 6. Download / load IO LULC tree cover
+# 6. Download / load ESA WorldCover tree cover
 # ---------------------------------------------------------------------------
-def download_io_lulc(cache_only: bool = False) -> Path:
+def download_esa_worldcover(cache_only: bool = False) -> Path:
     """
-    Download 10 m land-use/land-cover from Impact Observatory via Planetary
-    Computer STAC API for Orange County extent. Cache as GeoTIFF.
+    Download ESA WorldCover V2 2021 (10 m) from Planetary Computer STAC API
+    for Orange County extent. Reproject from EPSG:4326 to EPSG:32617 so
+    downstream buffer calculations work in meters. Cache as GeoTIFF.
 
-    Tree cover class = 2 in IO LULC 9-class.
+    Tree cover class = 10 in ESA WorldCover.
     """
     if LULC_CACHE.exists():
         _progress(f"Loading cached LULC from {LULC_CACHE}")
@@ -418,9 +447,11 @@ def download_io_lulc(cache_only: bool = False) -> Path:
             "Run without --cache-only to download."
         )
 
-    _progress("Downloading IO LULC from Planetary Computer STAC API ...")
+    _progress("Downloading ESA WorldCover from Planetary Computer STAC API ...")
     import planetary_computer
     import pystac_client
+    from rasterio.merge import merge
+    from rasterio.warp import Resampling, calculate_default_transform, reproject
 
     catalog = pystac_client.Client.open(
         "https://planetarycomputer.microsoft.com/api/stac/v1",
@@ -429,46 +460,98 @@ def download_io_lulc(cache_only: bool = False) -> Path:
 
     bbox = ORANGE_COUNTY_BBOX
     search = catalog.search(
-        collections=["io-lulc-9-class"],
+        collections=["esa-worldcover"],
         bbox=bbox,
-        datetime="2023",
-        limit=1,
+        datetime="2021",
     )
     items = list(search.items())
     if not items:
         raise RuntimeError(
-            "No IO LULC items found for Orange County. "
+            "No ESA WorldCover items found for Orange County. "
             "Check Planetary Computer availability."
         )
 
-    item = items[0]
-    href = item.assets["data"].href
+    _progress(f"Found {len(items)} WorldCover tile(s). Reading and cropping ...")
 
-    _progress(f"Reading LULC raster from {href[:80]}...")
+    # Read each tile, windowed to bbox
+    tile_datasets = []
+    memfiles = []  # Keep MemoryFile objects alive for merge
+    for item in items:
+        href = item.assets["map"].href
+        _progress(f"  Tile: {href[-30:]}")
 
-    with rasterio.open(href) as src:
-        # Transform bbox to raster CRS
-        transformer = Transformer.from_crs(CRS_WGS84, src.crs, always_xy=True)
-        minx, miny = transformer.transform(bbox[0], bbox[1])
-        maxx, maxy = transformer.transform(bbox[2], bbox[3])
+        with rasterio.open(href) as src:
+            window = src.window(*bbox)
+            data = src.read(1, window=window, boundless=True, fill_value=0)
+            transform = src.window_transform(window)
 
-        window = src.window(minx, miny, maxx, maxy)
-        data = src.read(1, window=window)
-        transform = src.window_transform(window)
+            from rasterio.io import MemoryFile
 
-        profile = src.profile.copy()
-        profile.update(
-            width=data.shape[1],
-            height=data.shape[0],
-            transform=transform,
-            driver="GTiff",
-            compress="lzw",
-        )
+            memfile = MemoryFile()
+            memfiles.append(memfile)  # prevent GC
+            with memfile.open(
+                driver="GTiff",
+                height=data.shape[0],
+                width=data.shape[1],
+                count=1,
+                dtype=data.dtype,
+                crs=src.crs,
+                transform=transform,
+            ) as mem_ds:
+                mem_ds.write(data, 1)
+            # Reopen in read mode for merge
+            tile_datasets.append(memfile.open())
 
-        with rasterio.open(LULC_CACHE, "w", **profile) as dst:
-            dst.write(data, 1)
+    # Merge tiles
+    _progress("Merging tiles ...")
+    merged_data, merged_transform = merge(tile_datasets)
+    merged_data = merged_data[0]  # single band
+    src_crs = tile_datasets[0].crs
 
-    _progress(f"Cached LULC raster ({data.shape}) to {LULC_CACHE}")
+    # Clean up
+    for ds in tile_datasets:
+        ds.close()
+    for mf in memfiles:
+        mf.close()
+
+    # Reproject EPSG:4326 -> EPSG:32617
+    _progress("Reprojecting to EPSG:32617 ...")
+    dst_crs = CRS_UTM17N
+    dst_transform, dst_width, dst_height = calculate_default_transform(
+        src_crs, dst_crs,
+        merged_data.shape[1], merged_data.shape[0],
+        left=merged_transform.c,
+        bottom=merged_transform.f + merged_transform.e * merged_data.shape[0],
+        right=merged_transform.c + merged_transform.a * merged_data.shape[1],
+        top=merged_transform.f,
+    )
+
+    dst_data = np.zeros((dst_height, dst_width), dtype=merged_data.dtype)
+    reproject(
+        source=merged_data,
+        destination=dst_data,
+        src_transform=merged_transform,
+        src_crs=src_crs,
+        dst_transform=dst_transform,
+        dst_crs=dst_crs,
+        resampling=Resampling.nearest,  # categorical data
+    )
+
+    # Write to cache
+    profile = {
+        "driver": "GTiff",
+        "height": dst_height,
+        "width": dst_width,
+        "count": 1,
+        "dtype": dst_data.dtype,
+        "crs": dst_crs,
+        "transform": dst_transform,
+        "compress": "lzw",
+    }
+    with rasterio.open(LULC_CACHE, "w", **profile) as dst:
+        dst.write(dst_data, 1)
+
+    _progress(f"Cached LULC raster ({dst_data.shape}) to {LULC_CACHE}")
     return LULC_CACHE
 
 
@@ -482,7 +565,7 @@ def calculate_tree_canopy(
 ) -> float:
     """
     Calculate tree canopy fraction within `radius` meters of a school.
-    IO LULC 9-class: Trees = class 2.
+    ESA WorldCover: Trees = class 10.
     """
     with rasterio.open(lulc_path) as src:
         # Transform school point to raster's native CRS (read dynamically, Bug D fix)
@@ -504,8 +587,7 @@ def calculate_tree_canopy(
         if data.size == 0:
             return 0.0
 
-        # Class 2 = Trees in IO LULC 9-class
-        tree_pixels = np.sum(data == 2)
+        tree_pixels = np.sum(data == TREE_CLASS)
         valid_pixels = np.sum(data > 0)
         if valid_pixels == 0:
             return 0.0
@@ -700,8 +782,7 @@ def generate_county_grid(
                         if data.size > 0:
                             valid = np.sum(data > 0)
                             if valid > 0:
-                                # Class 2 = Trees in IO LULC 9-class
-                                cc = float(np.sum(data == 2)) / valid
+                                cc = float(np.sum(data == TREE_CLASS)) / valid
                                 mitigation = min(ALPHA * cc, MAX_MITIGATION)
                                 net_grid[j, i] = raw_grid[j, i] * (1 - mitigation)
                     except Exception:
@@ -870,10 +951,11 @@ def generate_analysis_markdown(df: pd.DataFrame):
     lines.append("")
     lines.append("## Ephesus Elementary Summary")
     lines.append("")
-    lines.append(f"- **500m raw rank:** #{int(ephesus['rank_raw_500m'])} of 11")
-    lines.append(f"- **500m net rank (after canopy):** #{int(ephesus['rank_net_500m'])} of 11")
-    lines.append(f"- **1000m raw rank:** #{int(ephesus['rank_raw_1000m'])} of 11")
-    lines.append(f"- **1000m net rank (after canopy):** #{int(ephesus['rank_net_1000m'])} of 11")
+    n_schools = len(df)
+    lines.append(f"- **500m raw rank:** #{int(ephesus['rank_raw_500m'])} of {n_schools}")
+    lines.append(f"- **500m net rank (after canopy):** #{int(ephesus['rank_net_500m'])} of {n_schools}")
+    lines.append(f"- **1000m raw rank:** #{int(ephesus['rank_raw_1000m'])} of {n_schools}")
+    lines.append(f"- **1000m net rank (after canopy):** #{int(ephesus['rank_net_1000m'])} of {n_schools}")
     lines.append(f"- **Tree canopy (500m):** {ephesus['canopy_500m']*100:.1f}%")
     lines.append(f"- **Tree canopy (1000m):** {ephesus['canopy_1000m']*100:.1f}%")
     lines.append("")
@@ -947,7 +1029,8 @@ def generate_analysis_markdown(df: pd.DataFrame):
     eph_raw = ephesus["raw_500m"]
     lines.append("### Ephesus Context")
     lines.append("")
-    lines.append("Ephesus ranks #8 of 11 in raw pollution exposure at 500m — in the lower third of")
+    eph_raw_rank = int(ephesus["rank_raw_500m"])
+    lines.append(f"Ephesus ranks #{eph_raw_rank} of {n_schools} in raw pollution exposure at 500m — in the lower third of")
     lines.append("district schools. This is a moderate position; schools like")
     lines.append(f"Glenwood ({glenwood_raw:.2f}) and FPG ({fpg_raw:.2f}) face pollution indices roughly")
     lines.append(f"10x higher than Ephesus ({eph_raw:.2f}).")
@@ -994,11 +1077,11 @@ def generate_analysis_markdown(df: pd.DataFrame):
     lines.append("4. **Wind patterns, terrain, and building effects** are not modeled. These")
     lines.append("   factors significantly influence actual pollutant dispersion.")
     lines.append("5. **Temporal variation** (rush hour, seasonal) is not captured.")
-    lines.append("6. **CRITICAL: IO LULC urban canopy limitation.** The Impact Observatory 10m")
+    lines.append("6. **CRITICAL: ESA WorldCover urban canopy limitation.** The ESA WorldCover 10m")
     lines.append("   land cover classifies each pixel into a single dominant class. In suburban")
     lines.append("   areas like Chapel Hill (which has ~55% city-wide tree canopy per American")
     lines.append("   Forests estimates), neighborhoods with scattered trees along streets and in")
-    lines.append("   yards are classified as \"Built Area\" (class 7) rather than \"Trees\" (class 2).")
+    lines.append("   yards are classified as \"Built-up\" (class 50) rather than \"Tree cover\" (class 10).")
     lines.append("   This means **tree canopy mitigation is significantly underestimated for urban")
     lines.append("   and suburban schools** (most show 0% canopy within 500m) while being")
     lines.append("   accurately captured for schools near contiguous forest. A high-resolution")
@@ -1135,15 +1218,6 @@ def create_pollution_chart(df: pd.DataFrame):
     ax.grid(True, axis="y", alpha=0.3)
     ax.set_axisbelow(True)
 
-    # Add note
-    note = (
-        "Road weights are proxies (not actual AADT).\n"
-        "Index is comparative, not absolute health risk."
-    )
-    props = dict(boxstyle="round", facecolor="white", alpha=0.9, edgecolor="gray")
-    ax.text(0.98, 0.02, note, transform=ax.transAxes, fontsize=8,
-            va="bottom", ha="right", bbox=props, style="italic", color="gray")
-
     plt.tight_layout()
     path = ASSETS_CHARTS / "road_pollution_comparison.png"
     plt.savefig(path, dpi=150, bbox_inches="tight")
@@ -1152,7 +1226,232 @@ def create_pollution_chart(df: pd.DataFrame):
 
 
 # ---------------------------------------------------------------------------
-# 15. Create county-wide folium maps
+# 15a. Helpers for interactive TRAP hover/click
+# ---------------------------------------------------------------------------
+def _grid_to_js_data(grid: np.ndarray, bounds_wgs84: tuple) -> str:
+    """Serialize pollution grid as base64 Float32Array for JavaScript lookup."""
+    import base64
+
+    gmax = float(np.percentile(grid[grid > 0], 99)) if np.any(grid > 0) else 1.0
+    # Quantize to 2 decimal places to save space
+    quantized = np.round(grid, 2).astype(np.float32)
+    ny, nx = quantized.shape
+    west, south, east, north = bounds_wgs84
+    b64 = base64.b64encode(quantized.tobytes()).decode()
+
+    return (
+        f"var GRID_B64 = '{b64}';\n"
+        f"var GRID_NX = {nx};\n"
+        f"var GRID_NY = {ny};\n"
+        f"var GRID_BOUNDS = [{west}, {south}, {east}, {north}];\n"
+        f"var GRID_MAX = {gmax:.4f};\n"
+    )
+
+
+def _roads_to_js_data(roads_gdf: gpd.GeoDataFrame) -> str:
+    """Serialize road segment centroids + metadata as JS arrays for click lookup.
+
+    Also embeds simplified road geometries as GeoJSON for highlighting.
+    """
+    import json
+
+    to_wgs = None
+    if roads_gdf.crs and roads_gdf.crs != CRS_WGS84:
+        roads_wgs = roads_gdf.to_crs(CRS_WGS84)
+    else:
+        roads_wgs = roads_gdf
+
+    lats, lons, weights, classes, names = [], [], [], [], []
+    geojson_features = []
+
+    for idx, row in roads_wgs.iterrows():
+        geom = row.geometry
+        if geom is None or geom.is_empty:
+            continue
+        centroid = geom.centroid
+        lats.append(round(centroid.y, 5))
+        lons.append(round(centroid.x, 5))
+        weights.append(float(row.get("weight", 0)))
+        classes.append(str(row.get("highway", "")))
+        name = row.get("name", "")
+        if isinstance(name, list):
+            name = name[0] if name else ""
+        if pd.isna(name):
+            name = ""
+        names.append(str(name))
+
+        # Simplified geometry for highlighting (max 5 coord pairs)
+        try:
+            simplified = geom.simplify(0.001, preserve_topology=True)
+            if simplified.geom_type == "MultiLineString":
+                coords = [list(line.coords) for line in simplified.geoms]
+                coords = [[[round(c[0], 5), round(c[1], 5)] for c in seg] for seg in coords]
+            else:
+                coords = [[[round(c[0], 5), round(c[1], 5)] for c in simplified.coords]]
+            geojson_features.append({
+                "type": "Feature",
+                "geometry": {
+                    "type": "MultiLineString" if len(coords) > 1 else "LineString",
+                    "coordinates": coords if len(coords) > 1 else coords[0],
+                },
+                "properties": {"i": len(lats) - 1},
+            })
+        except Exception:
+            geojson_features.append(None)
+
+    # Filter out None features
+    geojson_features = [f for f in geojson_features if f is not None]
+
+    geojson = json.dumps({
+        "type": "FeatureCollection",
+        "features": geojson_features,
+    }, separators=(",", ":"))
+
+    return (
+        f"var ROAD_LATS = {json.dumps(lats)};\n"
+        f"var ROAD_LONS = {json.dumps(lons)};\n"
+        f"var ROAD_WEIGHTS = {json.dumps([round(w, 4) for w in weights])};\n"
+        f"var ROAD_CLASSES = {json.dumps(classes)};\n"
+        f"var ROAD_NAMES = {json.dumps(names)};\n"
+        f"var ROAD_GEOJSON = {geojson};\n"
+    )
+
+
+_TRAP_INTERACTION_JS = """
+<div id="trap-info" style="position:fixed; bottom:30px; left:10px; z-index:1000;
+     background:white; padding:10px 14px; border-radius:5px;
+     box-shadow:2px 2px 5px rgba(0,0,0,0.3); font-family:monospace; font-size:13px;
+     max-height:300px; overflow-y:auto; min-width:220px;">
+  <b>TRAP Index:</b> <span id="trap-val">&mdash;</span><br>
+  <small>Hover for value &middot; Click for roads</small>
+  <div id="trap-roads" style="display:none; margin-top:6px; border-top:1px solid #ccc; padding-top:6px;"></div>
+</div>
+<script>
+(function() {
+  // Decode base64 Float32Array grid
+  var raw = atob(GRID_B64);
+  var bytes = new Uint8Array(raw.length);
+  for (var k = 0; k < raw.length; k++) bytes[k] = raw.charCodeAt(k);
+  var GRID_DATA = new Float32Array(bytes.buffer);
+
+  var highlightLayer = null;
+
+  // Find the Leaflet map instance
+  var mapEl = document.querySelector('.folium-map');
+  if (!mapEl) return;
+  var mapId = mapEl.id;
+  var map = window[mapId] || null;
+  // Fallback: search for L.Map instances
+  if (!map) {
+    for (var key in window) {
+      if (window[key] instanceof L.Map) { map = window[key]; break; }
+    }
+  }
+  if (!map) return;
+
+  function gridLookup(lat, lng) {
+    var west = GRID_BOUNDS[0], south = GRID_BOUNDS[1],
+        east = GRID_BOUNDS[2], north = GRID_BOUNDS[3];
+    if (lng < west || lng > east || lat < south || lat > north) return null;
+    var i = Math.floor((lng - west) / (east - west) * GRID_NX);
+    var j = Math.floor((north - lat) / (north - south) * GRID_NY);
+    if (i < 0 || i >= GRID_NX || j < 0 || j >= GRID_NY) return null;
+    return GRID_DATA[j * GRID_NX + i];
+  }
+
+  map.on('mousemove', function(e) {
+    var val = gridLookup(e.latlng.lat, e.latlng.lng);
+    var el = document.getElementById('trap-val');
+    if (val !== null && val > 0.001) {
+      el.textContent = val.toFixed(2);
+    } else {
+      el.textContent = '0.00';
+    }
+  });
+
+  map.on('mouseout', function() {
+    document.getElementById('trap-val').innerHTML = '&mdash;';
+  });
+
+  // Haversine distance in meters
+  function haversine(lat1, lon1, lat2, lon2) {
+    var R = 6371000;
+    var dLat = (lat2 - lat1) * Math.PI / 180;
+    var dLon = (lon2 - lon1) * Math.PI / 180;
+    var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  map.on('click', function(e) {
+    var clat = e.latlng.lat, clng = e.latlng.lng;
+    var val = gridLookup(clat, clng);
+    if (val !== null && val > 0.001) {
+      document.getElementById('trap-val').textContent = val.toFixed(2);
+    }
+
+    // Find contributing roads within 1000m
+    var contributors = [];
+    for (var k = 0; k < ROAD_LATS.length; k++) {
+      var d = haversine(clat, clng, ROAD_LATS[k], ROAD_LONS[k]);
+      if (d <= 1000) {
+        var contribution = ROAD_WEIGHTS[k] * Math.exp(-0.003 * d);
+        if (contribution > 0.0001) {
+          contributors.push({
+            idx: k,
+            name: ROAD_NAMES[k] || '(unnamed)',
+            cls: ROAD_CLASSES[k],
+            dist: d,
+            contrib: contribution
+          });
+        }
+      }
+    }
+    contributors.sort(function(a, b) { return b.contrib - a.contrib; });
+    var totalContrib = contributors.reduce(function(s, c) { return s + c.contrib; }, 0);
+
+    var roadsDiv = document.getElementById('trap-roads');
+    if (contributors.length === 0) {
+      roadsDiv.style.display = 'block';
+      roadsDiv.innerHTML = '<small>No contributing roads within 1000m</small>';
+    } else {
+      var top = contributors.slice(0, 8);
+      var html = '<b>Contributing roads (1000m):</b><br>';
+      for (var m = 0; m < top.length; m++) {
+        var c = top[m];
+        var pct = totalContrib > 0 ? (c.contrib / totalContrib * 100).toFixed(0) : '0';
+        html += '<small>' + (m+1) + '. ' + c.name + ' <i>(' + c.cls + ')</i> &mdash; ' +
+                Math.round(c.dist) + 'm &mdash; ' + c.contrib.toFixed(2) + ' (' + pct + '%)</small><br>';
+      }
+      if (contributors.length > 8) {
+        html += '<small>... +' + (contributors.length - 8) + ' more</small>';
+      }
+      roadsDiv.style.display = 'block';
+      roadsDiv.innerHTML = html;
+    }
+
+    // Highlight contributing roads on map
+    if (highlightLayer) { map.removeLayer(highlightLayer); highlightLayer = null; }
+    if (contributors.length > 0 && typeof ROAD_GEOJSON !== 'undefined') {
+      var topIndices = new Set(contributors.slice(0, 8).map(function(c) { return c.idx; }));
+      var features = ROAD_GEOJSON.features.filter(function(f) {
+        return f && f.properties && topIndices.has(f.properties.i);
+      });
+      if (features.length > 0) {
+        highlightLayer = L.geoJSON({type: 'FeatureCollection', features: features}, {
+          style: { color: '#ff00ff', weight: 4, opacity: 0.8 }
+        }).addTo(map);
+      }
+    }
+  });
+})();
+</script>
+"""
+
+
+# ---------------------------------------------------------------------------
+# 15c. Create county-wide folium maps
 # ---------------------------------------------------------------------------
 def _make_county_map(
     grid: np.ndarray,
@@ -1163,6 +1462,7 @@ def _make_county_map(
     rank_col: str,
     filename: str,
     radius: int = 500,
+    roads_gdf: gpd.GeoDataFrame = None,
 ):
     """Create a folium map with a pollution raster overlay and school markers."""
     import branca.colormap as cm
@@ -1215,30 +1515,36 @@ def _make_county_map(
         name="Pollution Heatmap",
     ).add_to(m)
 
-    # Add school markers
+    # Add school markers (color-coded CircleMarker by TRAP score)
     schools_group = folium.FeatureGroup(name="Schools", show=True)
+    norm_col_for_color = f"raw_norm_{radius}m"
     for _, row in df.iterrows():
-        is_ephesus = "Ephesus" in row["school"]
-        icon_color = "red" if is_ephesus else "blue"
-
         # Build column names explicitly from radius (Bug F fix)
         prefix = score_col.rsplit("_", 1)[0]  # "raw" or "net"
         norm_col = f"{prefix}_norm_{radius}m"
         canopy_col = f"canopy_{radius}m"
+
+        score_for_color = row.get(norm_col_for_color, 50)
+        color_hex = _score_to_color(score_for_color)
 
         popup_html = f"""
         <b>{row['school']}</b><br>
         <hr style="margin:4px 0;">
         <b>Pollution Score:</b> {row[score_col]:.2f}<br>
         <b>Normalized:</b> {row.get(norm_col, 'N/A')}<br>
-        <b>Rank:</b> #{int(row[rank_col])} of 11<br>
+        <b>Rank:</b> #{int(row[rank_col])} of {len(df)}<br>
         <b>Tree Canopy:</b> {row.get(canopy_col, 0)*100:.1f}%
         """
 
-        folium.Marker(
+        folium.CircleMarker(
             location=[row["lat"], row["lon"]],
+            radius=10,
+            color="#333333",
+            weight=2,
+            fillColor=color_hex,
+            fillOpacity=1.0,
             popup=folium.Popup(popup_html, max_width=250),
-            icon=folium.Icon(color=icon_color, icon="graduation-cap", prefix="fa"),
+            tooltip=row["school"],
         ).add_to(schools_group)
 
     schools_group.add_to(m)
@@ -1268,6 +1574,14 @@ def _make_county_map(
     """
     m.get_root().html.add_child(folium.Element(title_html))
 
+    # Inject interactive TRAP hover/click JS if roads data available
+    if roads_gdf is not None:
+        _progress("Embedding grid + road data for interactive hover/click ...")
+        grid_js = _grid_to_js_data(grid, bounds_wgs84)
+        roads_js = _roads_to_js_data(roads_gdf)
+        js_block = f"<script>\n{grid_js}\n{roads_js}\n</script>\n{_TRAP_INTERACTION_JS}"
+        m.get_root().html.add_child(folium.Element(js_block))
+
     path = ASSETS_MAPS / filename
     m.save(str(path))
     _progress(f"Saved {path}")
@@ -1278,6 +1592,7 @@ def create_county_maps(
     net_grid: np.ndarray,
     bounds_wgs84: tuple,
     df: pd.DataFrame,
+    roads_gdf: gpd.GeoDataFrame = None,
 ):
     """Create both raw and net pollution maps."""
     _make_county_map(
@@ -1287,6 +1602,7 @@ def create_county_maps(
         rank_col="rank_raw_500m",
         filename="road_pollution_raw_map.html",
         radius=500,
+        roads_gdf=roads_gdf,
     )
     _make_county_map(
         net_grid, bounds_wgs84, df,
@@ -1295,6 +1611,7 @@ def create_county_maps(
         rank_col="rank_net_500m",
         filename="road_pollution_net_map.html",
         radius=500,
+        roads_gdf=roads_gdf,
     )
 
 
@@ -1302,7 +1619,7 @@ def create_county_maps(
 # 15b. Tree canopy standalone map
 # ---------------------------------------------------------------------------
 def create_tree_canopy_map(lulc_path: Path, schools: gpd.GeoDataFrame):
-    """Create standalone tree canopy map showing IO LULC class 2 (trees)."""
+    """Create standalone tree canopy map showing ESA WorldCover tree cover."""
     import base64
     import io
     from PIL import Image
@@ -1317,10 +1634,12 @@ def create_tree_canopy_map(lulc_path: Path, schools: gpd.GeoDataFrame):
             w_lon, s_lat = to_wgs.transform(left, bottom)
             e_lon, n_lat = to_wgs.transform(right, top)
 
-            data = src.read(1)
+            # Downsample for map overlay (10m resolution not needed)
+            step = max(1, max(src.height, src.width) // 2000)
+            data = src.read(1, out_shape=(src.height // step, src.width // step))
             h, w = data.shape
             rgba = np.zeros((h, w, 4), dtype=np.uint8)
-            tree_mask = data == 2
+            tree_mask = data == TREE_CLASS
             rgba[tree_mask] = [34, 139, 34, 160]  # forest green, semi-transparent
 
             img = Image.fromarray(rgba, "RGBA")
@@ -1334,7 +1653,7 @@ def create_tree_canopy_map(lulc_path: Path, schools: gpd.GeoDataFrame):
                 image=img_url,
                 bounds=[[s_lat, w_lon], [n_lat, e_lon]],
                 opacity=0.6,
-                name="Tree Canopy (LULC class 2)",
+                name="Tree Canopy (ESA WorldCover)",
             ).add_to(m)
     except Exception as e:
         _progress(f"Warning: Could not generate canopy overlay: {e}")
@@ -1346,9 +1665,9 @@ def create_tree_canopy_map(lulc_path: Path, schools: gpd.GeoDataFrame):
     <div style="position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
                 z-index: 1000; background-color: white; padding: 10px 20px;
                 border-radius: 5px; box-shadow: 2px 2px 5px rgba(0,0,0,0.3);">
-        <h3 style="margin: 0;">Tree Canopy Cover — IO LULC Class 2</h3>
+        <h3 style="margin: 0;">Tree Canopy Cover — ESA WorldCover 2021</h3>
         <p style="margin: 5px 0 0 0; font-size: 12px; color: #666;">
-            Impact Observatory 10m Land Use/Land Cover (2023)
+            ESA WorldCover V2 10m Land Cover (2021)
         </p>
     </div>
     """
@@ -1403,6 +1722,7 @@ def create_combined_map(
     lulc_path: Path,
     bounds_wgs84: tuple,
     df: pd.DataFrame,
+    roads_gdf: gpd.GeoDataFrame = None,
 ):
     """Create a single map with all analysis layers as toggleable overlays."""
     import base64
@@ -1432,10 +1752,12 @@ def create_combined_map(
             w_lon, s_lat = to_wgs.transform(left, bottom)
             e_lon, n_lat = to_wgs.transform(right, top)
 
-            data = src.read(1)
+            # Downsample for map overlay (10m resolution not needed)
+            step = max(1, max(src.height, src.width) // 2000)
+            data = src.read(1, out_shape=(src.height // step, src.width // step))
             h, w = data.shape
             rgba = np.zeros((h, w, 4), dtype=np.uint8)
-            tree_mask = data == 2
+            tree_mask = data == TREE_CLASS
             rgba[tree_mask] = [34, 139, 34, 160]
 
             img = Image.fromarray(rgba, "RGBA")
@@ -1462,10 +1784,12 @@ def create_combined_map(
     ).add_to(net_group)
     net_group.add_to(m)
 
-    # Layer 4: School markers
+    # Layer 4: School markers (color-coded CircleMarker by TRAP score)
     schools_group = folium.FeatureGroup(name="Schools", show=True)
     for _, row in df.iterrows():
-        is_ephesus = "Ephesus" in row["school"]
+        score_for_color = row.get("raw_norm_500m", 50)
+        color_hex = _score_to_color(score_for_color)
+
         popup_html = f"""
         <b>{row['school']}</b><br>
         <hr style="margin:4px 0;">
@@ -1473,13 +1797,15 @@ def create_combined_map(
         <b>Net (500m):</b> {row['net_500m']:.2f} (rank #{int(row['rank_net_500m'])})<br>
         <b>Canopy:</b> {row.get('canopy_500m', 0)*100:.1f}%
         """
-        folium.Marker(
+        folium.CircleMarker(
             location=[row["lat"], row["lon"]],
+            radius=10,
+            color="#333333",
+            weight=2,
+            fillColor=color_hex,
+            fillOpacity=1.0,
             popup=folium.Popup(popup_html, max_width=250),
-            icon=folium.Icon(
-                color="red" if is_ephesus else "blue",
-                icon="graduation-cap", prefix="fa",
-            ),
+            tooltip=row["school"],
         ).add_to(schools_group)
     schools_group.add_to(m)
 
@@ -1499,6 +1825,14 @@ def create_combined_map(
     """
     m.get_root().html.add_child(folium.Element(title_html))
 
+    # Inject interactive TRAP hover/click JS (uses raw grid as primary layer)
+    if roads_gdf is not None:
+        _progress("Embedding grid + road data for interactive hover/click ...")
+        grid_js = _grid_to_js_data(raw_grid, bounds_wgs84)
+        roads_js = _roads_to_js_data(roads_gdf)
+        js_block = f"<script>\n{grid_js}\n{roads_js}\n</script>\n{_TRAP_INTERACTION_JS}"
+        m.get_root().html.add_child(folium.Element(js_block))
+
     path = ASSETS_MAPS / "road_pollution_combined_map.html"
     m.save(str(path))
     _progress(f"Saved {path}")
@@ -1507,18 +1841,33 @@ def create_combined_map(
 # ---------------------------------------------------------------------------
 # 16. Debug maps
 # ---------------------------------------------------------------------------
-def _add_school_markers(m, schools):
-    """Add school markers to a folium map (for debug maps)."""
+def _add_school_markers(m, schools, df=None):
+    """Add school markers to a folium map (for debug maps).
+
+    If *df* is provided and contains ``raw_norm_500m``, markers are color-coded
+    by TRAP score.  Otherwise a simple Ephesus=red / others=blue scheme is used.
+    """
+    score_lookup = {}
+    if df is not None and "raw_norm_500m" in df.columns:
+        for _, r in df.iterrows():
+            score_lookup[r["school"]] = r["raw_norm_500m"]
+
     for _, row in schools.iterrows():
-        is_ephesus = "Ephesus" in row["school"]
-        folium.Marker(
+        name = row["school"]
+        if score_lookup:
+            color_hex = _score_to_color(score_lookup.get(name, 50))
+        else:
+            color_hex = "#e6031b" if "Ephesus" in name else "#3388ff"
+
+        folium.CircleMarker(
             location=[row["lat"], row["lon"]],
-            popup=row["school"],
-            icon=folium.Icon(
-                color="red" if is_ephesus else "blue",
-                icon="graduation-cap",
-                prefix="fa",
-            ),
+            radius=10,
+            color="#333333",
+            weight=2,
+            fillColor=color_hex,
+            fillOpacity=1.0,
+            popup=name,
+            tooltip=name,
         ).add_to(m)
 
 
@@ -1668,11 +2017,12 @@ def generate_debug_maps(
             w_lon, s_lat = to_wgs.transform(left, bottom)
             e_lon, n_lat = to_wgs.transform(right, top)
 
-            data = src.read(1)
-            # Create binary tree mask: green for trees, transparent otherwise
+            # Downsample for map overlay (10m resolution not needed)
+            step = max(1, max(src.height, src.width) // 2000)
+            data = src.read(1, out_shape=(src.height // step, src.width // step))
             h, w = data.shape
             rgba = np.zeros((h, w, 4), dtype=np.uint8)
-            tree_mask = data == 2
+            tree_mask = data == TREE_CLASS
             rgba[tree_mask] = [34, 139, 34, 160]  # forest green, semi-transparent
 
             img = Image.fromarray(rgba, "RGBA")
@@ -1686,13 +2036,13 @@ def generate_debug_maps(
                 image=img_url,
                 bounds=[[s_lat, w_lon], [n_lat, e_lon]],
                 opacity=0.6,
-                name="Tree Canopy (LULC class 2)",
+                name="Tree Canopy (ESA WorldCover)",
             ).add_to(m5)
     except Exception as e:
         _progress(f"  Warning: Could not generate canopy overlay: {e}")
     _add_school_markers(m5, schools)
     folium.LayerControl().add_to(m5)
-    _add_debug_title(m5, "Debug 05: Tree Canopy (IO LULC Class 2)")
+    _add_debug_title(m5, "Debug 05: Tree Canopy (ESA WorldCover 2021)")
     m5.save(str(ASSETS_MAPS_DEBUG / "debug_05_tree_canopy.html"))
 
     # --- debug_06 & debug_07: Grid overlays (reuse _make_county_map logic) ---
@@ -1771,7 +2121,7 @@ def main():
 
     # 5. Download LULC
     print("\n[5/9] Loading land cover data ...")
-    lulc_path = download_io_lulc(cache_only=args.cache_only)
+    lulc_path = download_esa_worldcover(cache_only=args.cache_only)
 
     # 6. Run school analysis
     print("\n[6/9] Analyzing pollution exposure for each school ...")
@@ -1791,7 +2141,7 @@ def main():
         raw_grid, net_grid, bounds = generate_county_grid(
             road_points, roads, lulc_path, resolution=args.grid_resolution
         )
-        create_county_maps(raw_grid, net_grid, bounds, df)
+        create_county_maps(raw_grid, net_grid, bounds, df, roads_gdf=roads)
     else:
         print("\n[8/9] Skipping county grid (--skip-grid)")
 
@@ -1799,7 +2149,7 @@ def main():
     print("\n[9/9] Generating additional maps ...")
     create_tree_canopy_map(lulc_path, schools)
     if raw_grid is not None:
-        create_combined_map(raw_grid, net_grid, lulc_path, bounds, df)
+        create_combined_map(raw_grid, net_grid, lulc_path, bounds, df, roads_gdf=roads)
 
     # Debug maps (if requested)
     if args.debug_maps:

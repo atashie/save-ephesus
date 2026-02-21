@@ -96,6 +96,69 @@ KEEP EPHESUS (Long-term):
 
 ---
 
+## Teacher Survey Data (NC TWC Survey 2024)
+
+### Overview
+
+| Metric | Value |
+|--------|-------|
+| Survey | NC Teacher Working Conditions Survey 2024 |
+| Ephesus Respondents | 43 teachers |
+| District Respondents | 1,017 teachers |
+
+### Student Conduct (Ephesus vs District)
+
+| Metric | Ephesus | District | Difference |
+|--------|---------|----------|------------|
+| Students follow conduct rules | **97.67%** | 68.83% | **+28.84 pts** |
+| Uses positive behavioral interventions | **100%** | 80.53% | **+19.47 pts** |
+| Teachers enforce rules | **95.35%** | 79.74% | **+15.61 pts** |
+| Leadership supports discipline | **88.37%** | 69.03% | **+19.34 pts** |
+
+### Behavioral Problems (Lower = Better)
+
+| Issue | Ephesus | District | Note |
+|-------|---------|----------|------|
+| Physical conflicts | **6.98%** | 36.38% | 5x fewer |
+| Bullying | **18.60%** | 44.74% | Less than half |
+| Threats toward teachers | **0%** | 15.54% | Zero incidents |
+| Cyberbullying | **0%** | 27.43% | Zero incidents |
+| Weapons possession | **0%** | 9.05% | Zero incidents |
+| Drug/tobacco use | **0%** | 28.42% | Zero incidents |
+| Student disrespect | **30.23%** | 57.82% | Nearly half |
+
+### Teacher Satisfaction
+
+| Metric | Ephesus | District | Difference |
+|--------|---------|----------|------------|
+| Good place to work and learn | **97.67%** | 91.25% | +6.42 pts |
+| Comfortable raising issues | **90.70%** | 75.91% | +14.79 pts |
+| Look forward to each working day | **90.70%** | 82.40% | +8.30 pts |
+
+### Community Engagement
+
+| Metric | Ephesus | District | Difference |
+|--------|---------|----------|------------|
+| Parents know what's going on | **97.67%** | 84.86% | **+12.81 pts** |
+| Community supports teachers | **95.35%** | 82.01% | **+13.34 pts** |
+| Parents support teachers | **93.02%** | 87.22% | +5.80 pts |
+
+### Facilities (Acknowledging Weaknesses)
+
+| Metric | Ephesus | District | Note |
+|--------|---------|----------|------|
+| Building maintenance | **41.86%** | 68.81% | 27 pts below |
+| Air quality | **60.47%** | 82.87% | 22 pts below |
+| Building comfort | **60.47%** | 74.06% | 14 pts below |
+| Reliable internet | **76.74%** | 93.17% | 16 pts below |
+
+**Note:** Facility metrics support the case for renovation investment, not closure.
+
+**Full analysis:** `data/processed/teacher_survey_analysis.md`
+**Source files:** `data/raw/teacher_surveys/ephesus_elementary_*.csv`
+
+---
+
 ## Academic Data
 
 ### Growth Scores (NC Report Cards 2023-24)
@@ -137,6 +200,76 @@ KEEP EPHESUS (Long-term):
 | Affordable Housing | CH Affordable Housing | https://www.chapelhillaffordablehousing.org |
 | Board Meeting Minutes | CHCCS Granicus | https://chccs.granicus.com/viewpublisher.php?view_id=2 |
 | Facility Assessment | George Griffin Substack | https://georgegriffin.substack.com/ |
+| Bond Decision Framework | 2024 Bond Presentation | data/processed/bond_presentation_2024.md |
+| Teacher Working Conditions | NC TWC Survey 2024 | https://nctwcs.org/ |
+
+---
+
+## Walkability Data (Verified)
+
+### Ephesus Student Walking Distance (Town of Chapel Hill GIS, February 2025)
+
+| Distance from School | Students |
+|---------------------|----------|
+| Within 0.5 miles | **99** |
+| 0.5-1 mile | 93 |
+| 1-1.5 miles | 59 |
+| Over 1.5 miles | Many (north of US-15/501) |
+
+**Source:** Chapel Hill Safe Routes to School Action Plan (Adopted 6/11/2025)
+
+### Active Transportation Rates (November 2024 Tally)
+
+| Mode | Students | Percentage |
+|------|----------|------------|
+| Walking | 64 | 16% |
+| Biking | 14 | 4% |
+| **Total** | **78** | **20%** |
+
+### Planned Infrastructure Improvements
+
+The Town has committed to multiple safety improvements around Ephesus Elementary, including:
+- Raised intersection at Ephesus Church Rd/Churchill Dr
+- New sidewalks (Ephesus Church Rd to Cypress Rd)
+- High-visibility crosswalks at 6+ intersections
+- Neighborhood Slow Zone demonstration project ($21,310)
+
+**Full analysis:** `data/processed/safe_routes_analysis.md`
+
+---
+
+## Road Pollution Exposure (500m Radius)
+
+### All Schools — TRAP Exposure Index
+
+| Rank | School | Raw Index | Net Index (after canopy) | Net Rank |
+|------|--------|-----------|--------------------------|----------|
+| 1 | Glenwood | 19.29 | 18.99 | 1 |
+| 2 | FPG Bilingue | 17.61 | 16.75 | 2 |
+| 3 | Scroggs | 4.68 | 4.14 | 4 |
+| 4 | Carrboro | 4.42 | 4.42 | 3 |
+| 5 | Morris Grove | 3.72 | 1.87 | 7 |
+| 6 | McDougle | 3.13 | 2.77 | 6 |
+| 7 | Estes Hills | 2.93 | 2.92 | 5 |
+| **8** | **Ephesus** | **1.72** | **1.71** | **8** |
+| 9 | Northside | 1.17 | 1.17 | 9 |
+| 10 | Seawell | 0.79 | 0.47 | 10 |
+| 11 | Rashkis | 0.18 | 0.15 | 11 |
+
+Index: P = Σ Wᵢ · e^(−λdᵢ), where W = road-class weight (AADT proxy), λ = 0.003 m⁻¹, d = distance to school.
+
+### Ephesus Summary
+
+- **500m raw rank:** #8 of 11 (lower third — moderate exposure)
+- **500m net rank:** #8 of 11
+- **1000m raw rank:** #5 of 11 (rises due to NC 15-501 proximity)
+- **1000m net rank:** #4 of 11
+- Tree canopy cover within 500m: 0.6%
+
+Ephesus is not among the most pollution-exposed schools at the 500m radius. However, closing the school and busing 99 walkers would increase their daily TRAP exposure during transit along arterial roads.
+
+**Full analysis:** `data/processed/ROAD_POLLUTION.md`
+**Source:** `src/road_pollution.py` with NCES EDGE school locations (2023-24)
 
 ---
 
@@ -147,8 +280,11 @@ KEEP EPHESUS (Long-term):
 - [x] School attendance zones for housing
 - [x] Transportation cost estimates (NC data)
 - [x] Housing development documentation
-- [ ] Walkability zones comparison - NO DATA AVAILABLE
+- [x] Bond decision framework and evaluation criteria
+- [x] Walkability data - 99 students within 0.5 miles (verified)
+- [x] Teacher survey data - NC TWC Survey 2024 (43 respondents)
+- [x] Road pollution exposure analysis - TRAP index for all 11 schools
 
 ---
 
-*Last updated: January 2026*
+*Last updated: February 2026*

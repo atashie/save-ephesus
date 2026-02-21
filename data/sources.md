@@ -57,6 +57,54 @@
   - Access Date: January 2025
   - Status: ✓ VERIFIED
 
+### Childcare Data
+- **NC DHHS Child Care Facility Search**
+  - URL: https://ncchildcare.ncdhhs.gov/childcaresearch
+  - Data: Licensed childcare centers (name, address, star rating, capacity)
+  - Access Date: January 2025
+  - Status: ✓ VERIFIED
+  - **Search Methodology:**
+    - Searched by zip codes: 27510, 27514, 27516, 27517
+    - Filtered for "Child Care Center" facility type
+    - Deduplicated results (centers may appear in multiple zip searches)
+    - Geocoded addresses to lat/lon coordinates
+    - Calculated haversine distance to each school
+    - Filtered centers within 0.5 miles (805 meters)
+  - **Limitations:**
+    - Distance is straight-line ("as the crow flies"), not walking distance
+    - Results limited to licensed facilities in NC DHHS database
+    - Data freshness depends on NC DHHS database update frequency
+
+## Processed Data Files
+
+### Bond Decision Framework
+- **2024 Bond Presentation Analysis**
+  - File: `data/processed/bond_presentation_2024.md`
+  - Data: District decision-making framework, evaluation criteria
+  - Source: CHCCS 2024 Bond Project Update Presentation
+  - Status: ✓ PROCESSED
+
+### Safe Routes to School Analysis
+- **Safe Routes to School Action Plan**
+  - File: `data/processed/safe_routes_analysis.md`
+  - Source: Town of Chapel Hill, adopted 6/11/2025
+  - Data: Student walking distances, active transportation rates, planned infrastructure
+  - Key findings: 99 students within 0.5 miles, 20% walk/bike rate
+  - Status: ✓ PROCESSED
+
+### Childcare Center Analysis
+- **Childcare Centers by School**
+  - File: `data/processed/childcare_by_school.csv`
+  - Source: NC DHHS Child Care Facility Search
+  - Data: Count and total capacity of childcare centers within 0.5 miles of each school
+  - Status: ✓ PROCESSED
+
+- **Childcare Centers Detail**
+  - File: `data/processed/childcare_centers_detail.csv`
+  - Source: NC DHHS Child Care Facility Search
+  - Data: Individual center details (name, address, capacity, rating, nearest school, distance)
+  - Status: ✓ PROCESSED
+
 ### Transportation Data
 - **Charlotte Urban Institute**
   - URL: https://ui.charlotte.edu/
@@ -68,7 +116,8 @@
 
 | Statistic | Value | Source | Status |
 |-----------|-------|--------|--------|
-| Students who walk to Ephesus | 99 | Parent-reported* | * Unverified |
+| Students within 0.5 miles of Ephesus | 99 | Town of Chapel Hill GIS | ✓ Verified |
+| Students walking/biking to Ephesus | 78 (20%) | Safe Routes Tally Nov 2024 | ✓ Verified |
 | Ephesus Free/Reduced Lunch % | 30-36% | NCES | ✓ Verified |
 | Ephesus Minority Enrollment % | 50% | NCES | ✓ Verified |
 | Ephesus Academic Growth Score | 85.8 | NC Report Cards | ✓ Verified |
@@ -92,7 +141,7 @@
 - [x] Enrollment numbers verified (389-410 students)
 - [x] Cost estimates verified ($1.7M savings, $28.9M renovation)
 - [x] Housing development data verified (563 total: 149 affordable + 414 market-rate)
-- [ ] Walkability data - PARENT-REPORTED ONLY (cannot independently verify)
+- [x] Walkability data verified (99 students within 0.5 miles - Town of Chapel Hill GIS, Feb 2025)
 
 ## Academic Growth Rankings (Verified)
 

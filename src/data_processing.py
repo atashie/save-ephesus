@@ -64,10 +64,13 @@ def load_housing_data():
 
 
 def load_school_locations():
-    """Load school location data."""
-    filepath = DATA_PROCESSED / "school_locations.csv"
+    """Load school location data (NCES EDGE 2023-24, cached by road_pollution.py)."""
+    filepath = PROJECT_ROOT / "data" / "cache" / "nces_school_locations.csv"
     if not filepath.exists():
-        raise FileNotFoundError(f"Run data_collection.py first: {filepath}")
+        raise FileNotFoundError(
+            f"School locations not found at {filepath}. "
+            "Run road_pollution.py first to download from NCES."
+        )
 
     df = pd.read_csv(filepath)
     return df
