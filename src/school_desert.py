@@ -22,8 +22,9 @@ Speed model sources:
   Street Facilities) and FHWA Urban Arterial Speed Studies. Effective/posted
   ratios: ~65% residential, ~71% secondary, ~73% primary/trunk, ~92% motorway.
   Accounts for intersection delays, stop signs, signals, school-hour traffic.
-- Node snapping: longitudes scaled by cos(latitude) for metric-approximate
-  nearest-neighbor queries in WGS84 coordinate space.
+- Edge snapping: grid points snap to nearest edge LineString (not just nodes)
+  via Shapely STRtree, with travel time interpolated along the matched edge.
+  Longitudes scaled by cos(latitude) for metric-approximate queries in WGS84.
 
 Data sources:
 - Road networks: OpenStreetMap via OSMnx
@@ -38,6 +39,7 @@ Outputs:
 import base64
 import io
 import json
+import math
 import sys
 import warnings
 from pathlib import Path
@@ -53,8 +55,8 @@ import numpy as np
 import osmnx as ox
 import pandas as pd
 from scipy.spatial import cKDTree
-from shapely.geometry import Point, Polygon, box
-from shapely.ops import unary_union
+import shapely                      # for points(), STRtree, distance, line_locate_point
+from shapely.geometry import LineString, Point
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 matplotlib.use("Agg")
@@ -181,11 +183,108 @@ def _nearest_node(node_ids, tree, lon, lat, cos_lat):
     return node_ids[idx]
 
 
-def _nearest_nodes_batch(node_ids, tree, lons, lats, cos_lat):
-    """Find nearest graph nodes for arrays of (lon, lat) points."""
-    coords = np.column_stack([lons * cos_lat, lats])
-    _, indices = tree.query(coords)
-    return [node_ids[i] for i in indices]
+def _build_edge_index(G: nx.MultiDiGraph) -> dict:
+    """Build a Shapely STRtree spatial index over deduplicated edge geometries.
+
+    Returns dict with keys: tree, scaled_geoms, start_nodes, end_nodes,
+    edge_times, cos_lat.  ``start_node`` is at fraction 0 of the geometry,
+    ``end_node`` at fraction 1.
+    """
+    # Compute cos(mean_lat) for metric-approximate scaling
+    lats = [G.nodes[n]["y"] for n in G.nodes()]
+    mean_lat = np.mean(lats)
+    cos_lat = np.cos(np.radians(mean_lat))
+
+    seen = set()
+    scaled_geoms = []
+    start_nodes = []
+    end_nodes = []
+    edge_times = []
+
+    for u, v, key, data in G.edges(keys=True, data=True):
+        canon = (min(u, v), max(u, v), key)
+        if canon in seen:
+            continue
+        seen.add(canon)
+
+        # Get or construct geometry
+        if "geometry" in data:
+            geom = data["geometry"]
+        else:
+            u_x, u_y = G.nodes[u]["x"], G.nodes[u]["y"]
+            v_x, v_y = G.nodes[v]["x"], G.nodes[v]["y"]
+            geom = LineString([(u_x, u_y), (v_x, v_y)])
+
+        # Detect which node is at the start of the geometry
+        g0 = geom.coords[0]
+        u_x, u_y = G.nodes[u]["x"], G.nodes[u]["y"]
+        if abs(g0[0] - u_x) + abs(g0[1] - u_y) < 1e-8:
+            s_node, e_node = u, v          # geom start ≈ node u
+        else:
+            s_node, e_node = v, u          # geom start ≈ node v
+
+        # Scale geometry for metric-approximate nearest-neighbor
+        scaled = shapely.transform(geom, lambda c: c * [[cos_lat, 1]])
+
+        scaled_geoms.append(scaled)
+        start_nodes.append(s_node)
+        end_nodes.append(e_node)
+        edge_times.append(data.get("travel_time", 0.0))
+
+    tree = shapely.STRtree(scaled_geoms)
+    return {
+        "tree": tree,
+        "scaled_geoms": scaled_geoms,
+        "start_nodes": np.array(start_nodes),
+        "end_nodes": np.array(end_nodes),
+        "edge_times": np.array(edge_times, dtype=np.float64),
+        "cos_lat": cos_lat,
+    }
+
+
+def _ensure_bidirectional(G: nx.MultiDiGraph) -> nx.MultiDiGraph:
+    """Add reverse edges where missing, so all roads are traversable both ways."""
+    edges_to_add = []
+    for u, v, key, data in G.edges(keys=True, data=True):
+        if not G.has_edge(v, u):
+            edges_to_add.append((v, u, data.copy()))
+    for v, u, data in edges_to_add:
+        G.add_edge(v, u, **data)
+    return G
+
+
+def _graph_to_geojson(G: nx.MultiDiGraph) -> dict:
+    """Convert graph edges to a GeoJSON FeatureCollection of LineStrings.
+
+    Uses actual edge ``geometry`` attribute (curved road shapes from OSMnx
+    simplification) when available; falls back to straight line between
+    endpoint nodes.  Deduplicates bidirectional edges (keeps one direction
+    per node pair).  Rounds coordinates to 5 decimal places (~1 m precision)
+    to reduce file size.
+    """
+    seen = set()
+    features = []
+    for u, v, data in G.edges(data=True):
+        edge_key = (min(u, v), max(u, v))
+        if edge_key in seen:
+            continue
+        seen.add(edge_key)
+
+        if "geometry" in data:
+            coords = [[round(c[0], 5), round(c[1], 5)]
+                      for c in data["geometry"].coords]
+        else:
+            u_x, u_y = round(G.nodes[u]["x"], 5), round(G.nodes[u]["y"], 5)
+            v_x, v_y = round(G.nodes[v]["x"], 5), round(G.nodes[v]["y"], 5)
+            coords = [[u_x, u_y], [v_x, v_y]]
+
+        features.append({
+            "type": "Feature",
+            "geometry": {"type": "LineString", "coordinates": coords},
+            "properties": {},
+        })
+
+    return {"type": "FeatureCollection", "features": features}
 
 
 # ---------------------------------------------------------------------------
@@ -310,6 +409,11 @@ def download_network(district_polygon, mode: str) -> nx.MultiDiGraph:
         G = ox.load_graphml(cache_path)
         # Re-add travel_time weights (graphml stores as strings)
         _add_travel_time_weights(G, mode)
+        n_before = G.number_of_edges()
+        _ensure_bidirectional(G)
+        n_added = G.number_of_edges() - n_before
+        if n_added:
+            _progress(f"  Added {n_added} reverse edges for bidirectional {mode} network")
         return G
 
     _progress(f"Downloading {mode} road network from OSM (this may take a few minutes) ...")
@@ -326,7 +430,7 @@ def download_network(district_polygon, mode: str) -> nx.MultiDiGraph:
     ).to_crs(CRS_WGS84).geometry.iloc[0]
 
     # Map mode to OSMnx network_type
-    osmnx_type = {"walk": "walk", "bike": "bike", "drive": "drive"}[mode]
+    osmnx_type = {"walk": "walk", "bike": "bike", "drive": "drive_service"}[mode]
 
     try:
         G = ox.graph_from_polygon(buffered_wgs, network_type=osmnx_type, simplify=True)
@@ -341,6 +445,11 @@ def download_network(district_polygon, mode: str) -> nx.MultiDiGraph:
 
     ox.save_graphml(G, cache_path)
     _progress(f"Cached {mode} network ({G.number_of_nodes()} nodes, {G.number_of_edges()} edges) to {cache_path}")
+    n_before = G.number_of_edges()
+    _ensure_bidirectional(G)
+    n_added = G.number_of_edges() - n_before
+    if n_added:
+        _progress(f"  Added {n_added} reverse edges for bidirectional {mode} network")
     return G
 
 
@@ -350,26 +459,19 @@ def download_network(district_polygon, mode: str) -> nx.MultiDiGraph:
 def compute_school_travel_times(
     G: nx.MultiDiGraph,
     schools: gpd.GeoDataFrame,
-    reverse: bool = False,
 ) -> dict:
     """Run Dijkstra from each school outward (no cutoff — explores entire graph).
-
-    Args:
-        reverse: If True, reverse the graph before running Dijkstra.
-            Use for drive mode so Dijkstra computes gridpoint->school
-            (resident reaching school) instead of school->gridpoint.
 
     Returns:
         {school_name: {node_id: travel_time_seconds, ...}, ...}
     """
-    G_search = G.reverse(copy=True) if reverse else G
     node_ids, tree, cos_lat = _build_node_index(G)
     travel_times = {}
     for _, row in schools.iterrows():
         name = row["school"]
         nearest_node = _nearest_node(node_ids, tree, row.geometry.x, row.geometry.y, cos_lat)
         times = nx.single_source_dijkstra_path_length(
-            G_search, nearest_node, weight="travel_time"
+            G, nearest_node, weight="travel_time"
         )
         travel_times[name] = dict(times)
         _progress(f"  {name}: reached {len(times)} nodes (full graph)")
@@ -447,10 +549,38 @@ def compute_desert_scores(
     for mode, travel_times in travel_times_by_mode.items():
         G = graphs[mode]
 
-        # Snap grid points to nearest network nodes (once per mode)
-        _progress(f"Snapping grid points to {mode} network ...")
-        node_ids, tree, cos_lat = _build_node_index(G)
-        nearest_nodes = _nearest_nodes_batch(node_ids, tree, grid_lons, grid_lats, cos_lat)
+        _progress(f"Snapping grid points to {mode} network (nearest-edge) ...")
+        eidx = _build_edge_index(G)
+        cos_lat = eidx["cos_lat"]
+
+        # Batch query: nearest edge for every grid point
+        query_pts = shapely.points(grid_lons * cos_lat, grid_lats)
+        nearest_ei = eidx["tree"].nearest(query_pts)
+
+        # Vectorized perpendicular distance (scaled degrees → meters)
+        matched_geoms = np.array(eidx["scaled_geoms"], dtype=object)[nearest_ei]
+        access_dist_m = shapely.distance(query_pts, matched_geoms) * 111_320.0
+
+        # Vectorized fraction along matched edge (0 = start_node, 1 = end_node)
+        snap_fracs = shapely.line_locate_point(matched_geoms, query_pts, normalized=True)
+
+        # Per-point endpoint IDs and edge travel times
+        snap_start = eidx["start_nodes"][nearest_ei]
+        snap_end   = eidx["end_nodes"][nearest_ei]
+        snap_etime = eidx["edge_times"][nearest_ei]
+
+        # Off-network travel uses 20% of modal speed: straight-line Euclidean
+        # distance is shorter than real road paths, so full-speed access legs
+        # would make off-road pixels *faster* than on-road ones.
+        ACCESS_SPEED_PENALTY = 0.2
+        access_speed = ACCESS_SPEED_PENALTY * {
+            "walk": WALK_SPEED_MPS, "bike": BIKE_SPEED_MPS,
+            "drive": DEFAULT_DRIVE_EFFECTIVE_MPH * 0.44704,
+        }[mode]
+
+        # Max access-leg distance: pixels more than 2 grid cells from any
+        # network edge are unreachable (e.g. lakes, large parks).
+        max_access_m = 2 * GRID_RESOLUTION_M
 
         for scenario_name, closed_schools in scenarios.items():
             open_schools = [s for s in all_schools if s not in closed_schools]
@@ -458,14 +588,37 @@ def compute_desert_scores(
             _progress(f"  Computing {mode} / {scenario_name} ({len(open_schools)} open schools) ...")
 
             for i in range(n_points):
-                node = nearest_nodes[i]
+                # Too far from any road → unreachable
+                if access_dist_m[i] > max_access_m:
+                    results.append({
+                        "grid_id": grid_ids[i],
+                        "lat": grid_lats[i],
+                        "lon": grid_lons[i],
+                        "mode": mode,
+                        "scenario": scenario_name,
+                        "min_time_seconds": np.nan,
+                        "nearest_school": None,
+                    })
+                    continue
+
+                u_node = snap_start[i]
+                v_node = snap_end[i]
+                f = snap_fracs[i]
+                e_time = snap_etime[i]
+                access_time_s = access_dist_m[i] / access_speed
+
                 best_time = np.inf
                 best_school = None
 
                 for school_name in open_schools:
-                    t = travel_times[school_name].get(node, np.inf)
-                    if t < best_time:
-                        best_time = t
+                    t_u = travel_times[school_name].get(u_node, np.inf)
+                    t_v = travel_times[school_name].get(v_node, np.inf)
+                    # Interpolate: travel from snap point to whichever endpoint is faster
+                    via_u = t_u + f * e_time           # school→u, then f of edge back to snap pt
+                    via_v = t_v + (1.0 - f) * e_time   # school→v, then (1-f) of edge back
+                    total = min(via_u, via_v) + access_time_s
+                    if total < best_time:
+                        best_time = total
                         best_school = school_name
 
                 results.append({
@@ -494,6 +647,7 @@ def rasterize_grid(
     value_column: str,
     resolution_m: int = GRID_RESOLUTION_M,
     district_polygon=None,
+    grid_params: dict = None,
 ) -> tuple:
     """Convert grid points to a 2D value raster in WGS84 space.
 
@@ -503,6 +657,10 @@ def rasterize_grid(
     Args:
         district_polygon: Optional Shapely polygon (WGS84) used to mask
             pixels outside the district after gap filling.
+        grid_params: Pre-computed grid parameters (minlon, maxlon, minlat,
+            maxlat, ncols, nrows, dlat, dlon).  When provided, all calls
+            share the same pixel grid, ensuring consistent alignment across
+            scenarios and modes.
 
     Returns:
         (values_2d, grid_meta, bounds) or (None, None, None) if no valid data.
@@ -518,24 +676,42 @@ def rasterize_grid(
     lons = valid["lon"].values
     vals = valid[value_column].values
 
-    # Cell size in degrees, approximating resolution_m at center latitude
-    center_lat = lats.mean()
-    dlat = resolution_m / 111_320.0
-    dlon = resolution_m / (111_320.0 * np.cos(np.radians(center_lat)))
+    if grid_params is not None:
+        minlon = grid_params["minlon"]
+        maxlon = grid_params["maxlon"]
+        minlat = grid_params["minlat"]
+        maxlat = grid_params["maxlat"]
+        ncols = grid_params["ncols"]
+        nrows = grid_params["nrows"]
+        dlat = grid_params["dlat"]
+        dlon = grid_params["dlon"]
+    else:
+        # Cell size in degrees, approximating resolution_m at center latitude
+        center_lat = lats.mean()
+        dlat = resolution_m / 111_320.0
+        dlon = resolution_m / (111_320.0 * np.cos(np.radians(center_lat)))
 
-    # Raster bounds with half-cell padding
-    minlon = lons.min() - dlon / 2
-    maxlon = lons.max() + dlon / 2
-    minlat = lats.min() - dlat / 2
-    maxlat = lats.max() + dlat / 2
+        # Raster bounds with half-cell padding
+        minlon = lons.min() - dlon / 2
+        maxlon = lons.max() + dlon / 2
+        minlat = lats.min() - dlat / 2
+        maxlat = lats.max() + dlat / 2
 
-    ncols = int(np.ceil((maxlon - minlon) / dlon))
-    nrows = int(np.ceil((maxlat - minlat) / dlat))
+        ncols = int(np.ceil((maxlon - minlon) / dlon))
+        nrows = int(np.ceil((maxlat - minlat) / dlat))
 
-    values_2d = np.full((nrows, ncols), np.nan, dtype=np.float32)
+        # Snap bounds to exact pixel multiples so Leaflet's pixel stride
+        # matches the rasterizer's dlat/dlon (fixes sub-pixel visual shift).
+        maxlon = minlon + ncols * dlon
+        minlat = maxlat - nrows * dlat
+
+    values_2d = np.full((nrows, ncols), np.inf, dtype=np.float32)
     col_indices = np.clip(((lons - minlon) / dlon).astype(int), 0, ncols - 1)
     row_indices = np.clip(((maxlat - lats) / dlat).astype(int), 0, nrows - 1)
-    values_2d[row_indices, col_indices] = vals
+    # Use minimum-wins so the lowest travel time wins when multiple grid
+    # points (including injected school anchor points) map to the same pixel.
+    np.minimum.at(values_2d, (row_indices, col_indices), vals)
+    values_2d[np.isinf(values_2d)] = np.nan
 
     # Track which pixels have ANY grid point (including routing NaNs).
     # This lets us distinguish rotation gaps (no grid point mapped here)
@@ -648,6 +824,7 @@ def create_map(
     bounds: list,
     hover_grids: dict = None,
     grid_meta: dict = None,
+    network_geojsons: dict = None,
 ) -> folium.Map:
     """Create interactive Folium map with scenario/mode switching.
 
@@ -658,6 +835,7 @@ def create_map(
         bounds: [[south, west], [north, east]] for overlay positioning
         hover_grids: {"scenario|mode|type": base64_float32_grid}
         grid_meta: dict with UTM/WGS84 bounds and grid dimensions
+        network_geojsons: {mode: geojson_dict} for road network overlay
     """
     m = folium.Map(
         location=CHAPEL_HILL_CENTER,
@@ -691,6 +869,7 @@ def create_map(
     # Build the custom HTML/JS control with overlay data embedded
     control_html = _build_control_html(
         heatmap_data, school_data, hover_grids or {}, grid_meta,
+        network_geojsons=network_geojsons,
     )
     m.get_root().html.add_child(folium.Element(control_html))
 
@@ -700,6 +879,7 @@ def create_map(
 def _build_control_html(
     heatmap_data: dict, schools: list,
     hover_grids: dict, grid_meta: dict,
+    network_geojsons: dict = None,
 ) -> str:
     """Build HTML/CSS/JS for scenario/mode/layer switching controls.
 
@@ -727,6 +907,7 @@ def _build_control_html(
     schools_json = json.dumps(schools)
     hover_grids_json = json.dumps(hover_grids)
     grid_meta_json = json.dumps(grid_meta) if grid_meta else "null"
+    network_edges_json = json.dumps(network_geojsons or {})
 
     return f"""
 <style>
@@ -830,6 +1011,10 @@ def _build_control_html(
     <label><input type="radio" name="layer_type" value="abs" checked onchange="window.updateDesertMap()"> Travel Time</label>
     <label><input type="radio" name="layer_type" value="delta" onchange="window.updateDesertMap()"> Change from Baseline</label>
 
+    <label style="display:block;margin-top:8px">
+      <input type="checkbox" id="show-network" checked onchange="window.updateDesertMap()"> Show road network
+    </label>
+
     <div id="desert-legend">
         <div class="section-title">Legend</div>
         <div id="legend-label"></div>
@@ -854,8 +1039,10 @@ def _build_control_html(
     var SCHOOLS = {schools_json};
     var HOVER_GRIDS_B64 = {hover_grids_json};
     var GRID_META = {grid_meta_json};
+    var NETWORK_EDGES = {network_edges_json};
 
     var overlayLayers = {{}};
+    var networkLayers = {{}};
     var schoolMarkers = [];
     var currentOverlayKey = null;
     var tooltip = document.getElementById('desert-tooltip');
@@ -907,11 +1094,20 @@ def _build_control_html(
         return null;
     }}
 
+    function initNetworkLayers(map) {{
+        for (var mode in NETWORK_EDGES) {{
+            networkLayers[mode] = L.geoJSON(NETWORK_EDGES[mode], {{
+                style: {{ color: '#000', weight: 1, opacity: 0 }}
+            }}).addTo(map);
+        }}
+    }}
+
     function initOverlays(map) {{
         for (var key in OVERLAYS_DATA) {{
             var d = OVERLAYS_DATA[key];
             overlayLayers[key] = L.imageOverlay(d.url, d.bounds, {{opacity: 0}}).addTo(map);
         }}
+        initNetworkLayers(map);
         // Attach hover handler once
         map.on('mousemove', function(e) {{
             var val = getGridValue(e.latlng.lat, e.latlng.lng);
@@ -1009,6 +1205,13 @@ def _build_control_html(
             overlayLayers[overlayKey].setOpacity(0.7);
         }}
         currentOverlayKey = overlayKey;
+
+        // Toggle network layers: show selected mode, hide others
+        var showNetworkEl = document.getElementById('show-network');
+        var showNetwork = showNetworkEl ? showNetworkEl.checked : true;
+        for (var m in networkLayers) {{
+            networkLayers[m].setStyle({{opacity: (showNetwork && m === mode) ? 0.4 : 0}});
+        }}
 
         updateSchoolMarkers(map, scenario);
 
@@ -1108,6 +1311,12 @@ def main():
     for mode in modes:
         graphs[mode] = download_network(district_polygon, mode)
 
+    # Build network GeoJSONs for map overlay
+    network_geojsons = {}
+    for mode in modes:
+        network_geojsons[mode] = _graph_to_geojson(graphs[mode])
+        _progress(f"  {mode}: {len(network_geojsons[mode]['features'])} edges for overlay")
+
     # 4. Compute travel times from each school
     print("\n[4/9] Computing school-outward travel times ...")
     travel_times_by_mode = {}
@@ -1115,12 +1324,26 @@ def main():
         print(f"\n  --- {mode.upper()} (no cutoff) ---")
         travel_times_by_mode[mode] = compute_school_travel_times(
             graphs[mode], schools,
-            reverse=(mode == "drive"),
         )
 
     # 5. Create grid
     print("\n[5/9] Creating analysis grid ...")
     grid = create_grid(district_polygon)
+
+    # Inject school locations as extra grid points so each school's
+    # pixel gets the correct (near-zero) travel time.
+    max_grid_id = grid["grid_id"].max()
+    school_pts = gpd.GeoDataFrame(
+        {
+            "grid_id": range(max_grid_id + 1, max_grid_id + 1 + len(schools)),
+            "lat": schools["lat"].values,
+            "lon": schools["lon"].values,
+        },
+        geometry=gpd.points_from_xy(schools["lon"], schools["lat"]),
+        crs=CRS_WGS84,
+    )
+    grid = pd.concat([grid, school_pts], ignore_index=True)
+    _progress(f"Added {len(schools)} school locations as grid anchor points")
 
     # 6. Compute desert scores
     print("\n[6/9] Computing desert scores for all scenarios ...")
@@ -1144,6 +1367,34 @@ def main():
 
     # 8. Rasterize → GeoTIFF → PNG overlays
     print("\n[8/9] Rendering heatmaps (GeoTIFF -> PNG) ...")
+
+    # Pre-compute a single pixel grid shared by all scenarios/modes.
+    # Shift minlon so school markers sit closer to pixel centers on average,
+    # reducing the perceived east-west displacement of the heatmap.
+    unique_pts = scores_df[["lat", "lon"]].drop_duplicates()
+    _all_lats = unique_pts["lat"].values
+    _all_lons = unique_pts["lon"].values
+    _center_lat = _all_lats.mean()
+    _dlat = GRID_RESOLUTION_M / 111_320.0
+    _dlon = GRID_RESOLUTION_M / (111_320.0 * np.cos(np.radians(_center_lat)))
+    _minlon = _all_lons.min() - _dlon / 2
+    _maxlat = _all_lats.max() + _dlat / 2
+    _maxlon = _all_lons.max() + _dlon / 2
+    _minlat = _all_lats.min() - _dlat / 2
+    # Nudge minlon so the mean fractional x-offset of schools ≈ 0.5
+    _school_fracs = ((schools["lon"].values - _minlon) / _dlon) % 1
+    _minlon -= (0.5 - _school_fracs.mean()) * _dlon
+    _ncols = int(np.ceil((_maxlon - _minlon) / _dlon))
+    _nrows = int(np.ceil((_maxlat - _minlat) / _dlat))
+    _maxlon = _minlon + _ncols * _dlon
+    _minlat = _maxlat - _nrows * _dlat
+    shared_grid_params = {
+        "minlon": _minlon, "maxlon": _maxlon,
+        "minlat": _minlat, "maxlat": _maxlat,
+        "ncols": _ncols, "nrows": _nrows,
+        "dlat": _dlat, "dlon": _dlon,
+    }
+
     heatmap_data = {}    # (scenario, mode, layer_type) → (b64_png, bounds)
     hover_grids = {}     # "scenario|mode|type" → base64 Float32Array
     grid_meta = None
@@ -1159,7 +1410,8 @@ def main():
             # --- Absolute time layer ---
             vmin, vmax = MODE_RANGES[mode]["abs"]
             vals_2d, meta, bounds = rasterize_grid(subset, "min_time_minutes",
-                                                      district_polygon=district_polygon)
+                                                      district_polygon=district_polygon,
+                                                      grid_params=shared_grid_params)
             if meta is not None and grid_meta is None:
                 grid_meta = meta
             if bounds is not None and common_bounds is None:
@@ -1178,7 +1430,8 @@ def main():
             if scenario != "baseline":
                 vmin_d, vmax_d = MODE_RANGES[mode]["delta"]
                 vals_d, meta_d, bounds_d = rasterize_grid(subset, "delta_minutes",
-                                                            district_polygon=district_polygon)
+                                                            district_polygon=district_polygon,
+                                                            grid_params=shared_grid_params)
                 if vals_d is not None:
                     tiff_path_d = TIFF_DIR / f"{scenario}_{mode}_delta.tif"
                     save_geotiff(vals_d, meta_d, tiff_path_d)
@@ -1195,7 +1448,7 @@ def main():
     # 9. Create interactive map
     print("\n[9/9] Creating interactive map ...")
     m = create_map(heatmap_data, schools, district_gdf, common_bounds,
-                   hover_grids, grid_meta)
+                   hover_grids, grid_meta, network_geojsons)
 
     map_path = ASSETS_MAPS / "school_desert_map.html"
     m.save(str(map_path))
