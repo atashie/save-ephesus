@@ -28,11 +28,13 @@ Three separate road network graphs are downloaded, one per travel mode:
 
 | Mode | OSMnx network_type | Description |
 |------|-------------------|-------------|
-| Drive | `drive` | Roads accessible to motor vehicles |
+| Drive | `drive_service` | Roads accessible to motor vehicles, including service roads. All edges are made bidirectional (reverse edges added where missing). |
 | Bike | `bike` | Roads and paths accessible to cyclists (falls back to `all` if the bike-specific network fails) |
 | Walk | `walk` | All pedestrian-accessible paths including sidewalks, trails, footways |
 
 Each network is downloaded for the district polygon plus a 500-meter buffer (in UTM) to capture roads that cross the district boundary. Networks are cached as GraphML files in `data/cache/`.
+
+**Bidirectional edges:** After loading or downloading each network, `_ensure_bidirectional()` adds a reverse edge for every edge that lacks one. This makes all three networks (drive, bike, walk) fully traversable in both directions. Because the graph is symmetric, Dijkstra run outward from a school gives the same travel time as a resident traveling inward toward the school — no graph reversal is needed.
 
 **Edge weights (travel_time in seconds)** are computed per edge from `edge length / speed`:
 
@@ -57,7 +59,7 @@ Edges with unrecognized highway types default to 18 mph effective speed.
 
 For each school, Dijkstra's single-source shortest-path algorithm is run outward across the entire network graph with no distance cutoff. This produces a lookup table of `{node_id: travel_time_seconds}` for every reachable node.
 
-**Key design choice — graph reversal for drive mode:** Drive networks are directional (one-way streets). The question we want to answer is "how long does it take a resident at grid point X to drive to the nearest school?" This is a grid→school query. But Dijkstra runs outward from the source, computing school→grid times. For walk and bike networks (which are effectively undirected), these are equivalent. For the drive network, the graph is **reversed** before running Dijkstra so that the outward traversal follows roads in the direction a resident would actually drive toward the school.
+Because all three networks are made bidirectional (reverse edges added where missing), Dijkstra from a school outward gives the same travel times as a resident traveling inward toward the school. No graph reversal is needed for any mode.
 
 This yields 33 Dijkstra runs total (11 schools × 3 modes). Travel times are cached in memory — they do not change across scenarios.
 
@@ -65,16 +67,21 @@ This yields 33 Dijkstra runs total (11 schools × 3 modes). Travel times are cac
 
 A regular point grid is generated in UTM (EPSG:32617) at 100-meter spacing. Only points whose UTM coordinates fall inside the district polygon (via `shapely.contains()`) are retained. The grid is then reprojected to WGS84 (EPSG:4326) for all subsequent steps.
 
-This produces approximately 16,164 grid points covering the district interior.
+After the UTM grid is created, the 11 school locations are injected as extra grid points (anchor points). This ensures each school's pixel receives a near-zero travel time in the baseline scenario, preventing schools from appearing as high-travel-time artifacts due to grid misalignment.
+
+This produces approximately 16,175 grid points (16,164 regular + 11 school anchors) covering the district interior.
 
 ### Step 6: Compute Desert Scores
 
-For each combination of (grid point × travel mode × scenario):
+For each travel mode, grid points are snapped to the road network using **edge-snapping** (not node-snapping), then travel times are computed for each scenario:
 
-1. The grid point is snapped to the nearest network node using a cKDTree spatial index. Longitudes are scaled by `cos(latitude)` before building the tree so that Euclidean distances in the tree approximate true metric distances.
-2. For each open school in the scenario, the pre-computed Dijkstra travel time from that school to the snapped node is looked up.
-3. The minimum travel time across all open schools is recorded, along with the identity of the nearest school.
-4. If no school's Dijkstra tree reaches the snapped node, the travel time is recorded as NaN.
+1. **Edge index construction:** A Shapely `STRtree` spatial index is built over deduplicated edge geometries (LineStrings). Longitudes are scaled by `cos(latitude)` so Euclidean distances approximate true metric distances in WGS84.
+2. **Nearest-edge query:** Each grid point is matched to the nearest road edge via batch `STRtree.nearest()`.
+3. **Access distance:** The perpendicular distance from grid point to matched edge is computed (vectorized via `shapely.distance`). Points more than 200 m (2 grid cells) from any edge are marked unreachable (NaN) — these represent lakes, large parks, and other off-network areas.
+4. **Fractional position:** The position along the matched edge is computed via `shapely.line_locate_point(normalized=True)`, yielding `f ∈ [0, 1]` where `f = 0` is the edge's start node and `f = 1` is the end node.
+5. **Travel time interpolation:** For each open school in the scenario, travel time is interpolated via both edge endpoints: `via_u = t_u + f × edge_time` and `via_v = t_v + (1−f) × edge_time`, where `t_u` and `t_v` are Dijkstra times from the school to the edge's start and end nodes respectively. The minimum of the two routes is selected.
+6. **Access-leg penalty:** An off-network penalty is added: `access_time = perpendicular_distance / (0.2 × modal_speed)`. The 20% speed factor accounts for straight-line distance being shorter than actual off-road paths (sidewalks, parking lots, driveways).
+7. **Minimum across schools:** The minimum total time (network travel + access penalty) across all open schools is recorded, along with the identity of the nearest school. If no school reaches either endpoint of the matched edge, the travel time is NaN.
 
 **Scenarios evaluated:**
 
@@ -102,12 +109,14 @@ A positive delta means the closure increased travel time at that grid point. Zer
 
 Grid points (irregularly spaced in WGS84 due to UTM→WGS84 reprojection) are binned into a regular lat/lon pixel grid:
 
-1. **Cell size** is computed from the 100m resolution: `dlat = 100 / 111320` degrees, `dlon = 100 / (111320 × cos(center_lat))` degrees. This ensures pixels are approximately 100m × 100m at the center of the district.
-2. Each grid point is assigned to its containing pixel via integer index arithmetic.
-3. **Gap filling (rotation gaps only):** NaN pixels caused by UTM→WGS84 coordinate rotation (where no grid point maps to the pixel) are filled using 2 iterations of mean-of-neighbors smoothing with a 3×3 window (`scipy.ndimage.uniform_filter`). NaN pixels from Dijkstra routing failures (where a grid point exists but no school was reachable) are intentionally preserved as transparent. The two gap types are distinguished by tracking which pixels received any grid point assignment.
-4. **District boundary masking:** After gap filling, every pixel center is tested for containment within the CHCCS district polygon. Pixels outside the polygon are set back to NaN. This prevents the gap fill from bleeding color outside the district boundary.
-5. **Colorization:** The value raster is mapped to RGBA using matplotlib colormaps. NaN cells become fully transparent (alpha=0); data cells get alpha=210/255. Absolute time layers use `RdYlGn_r` (green=close, red=far). Delta layers use `Oranges` (white=no change, dark orange=large increase).
-6. **Encoding:** The RGBA image is saved as a base64 PNG for embedding in the HTML map. The raw float32 values are also base64-encoded for the hover tooltip lookup.
+1. **Shared grid parameters** are pre-computed once from the full set of unique grid point coordinates and reused across all scenario/mode combinations. This ensures pixel-perfect alignment — every heatmap layer maps to the same pixel grid.
+2. **Cell size** is computed from the 100m resolution: `dlat = 100 / 111320` degrees, `dlon = 100 / (111320 × cos(center_lat))` degrees. This ensures pixels are approximately 100m × 100m at the center of the district.
+3. **Pixel alignment nudge (minlon):** The pixel grid's western edge (`minlon`) is shifted so that school marker locations land near pixel centers on average. This reduces the perceived east-west displacement between heatmap colors and school markers on the map.
+4. Each grid point is assigned to its containing pixel via integer index arithmetic. **Minimum-wins** assignment (`np.minimum.at`) is used so that when multiple grid points (including injected school anchor points) map to the same pixel, the lowest travel time wins.
+5. **Gap filling (rotation gaps only):** NaN pixels caused by UTM→WGS84 coordinate rotation (where no grid point maps to the pixel) are filled using 2 iterations of mean-of-neighbors smoothing with a 3×3 window (`scipy.ndimage.uniform_filter`). NaN pixels from Dijkstra routing failures (where a grid point exists but no school was reachable) are intentionally preserved as transparent. The two gap types are distinguished by tracking which pixels received any grid point assignment (`has_point` array).
+6. **District boundary masking:** After gap filling, every pixel center is tested for containment within the CHCCS district polygon. Pixels outside the polygon are set back to NaN. This prevents the gap fill from bleeding color outside the district boundary.
+7. **Colorization:** The value raster is mapped to RGBA using matplotlib colormaps. NaN cells become fully transparent (alpha=0); data cells get alpha=210/255. Absolute time layers use `RdYlGn_r` (green=close, red=far). Delta layers use `Oranges` (white=no change, dark orange=large increase).
+8. **Encoding:** The RGBA image is saved as a base64 PNG for embedding in the HTML map. The raw float32 values are also base64-encoded for the hover tooltip lookup.
 
 GeoTIFFs are saved to `data/cache/school_desert_tiffs/` for archival.
 
@@ -118,7 +127,9 @@ A Folium map is generated with:
 - The district boundary as a dashed polygon overlay
 - School locations as circle markers (blue=open, red with ×=closed, per scenario)
 - All heatmap layers pre-loaded as Leaflet `L.imageOverlay` objects (toggled via opacity)
+- Road network edges rendered as GeoJSON LineStrings per mode (drive/bike/walk), toggled with a "Show road network" checkbox. Only the active mode's network is displayed.
 - Radio button controls for scenario, travel mode, and layer type (absolute time vs. delta)
+- A gradient color legend showing the active color scale per mode/layer (RdYlGn_r for absolute time, Oranges for delta), with min/max labels that update when switching modes
 - A hover tooltip that decodes the base64 float32 grid in JavaScript and reports the value at the cursor position using linear WGS84 coordinate interpolation
 
 ---
@@ -167,16 +178,16 @@ A Folium map is generated with:
 
 **Network edges are simplified by OSMnx.** Intermediate nodes on straight road segments are removed. This reduces computational cost but means the network cannot represent mid-block access points.
 
-### 3. Grid Snapping Approximation
+### 3. Edge Snapping Approximation
 
-Each grid point is snapped to the **single nearest network node** using Euclidean distance (with longitude scaling). This means:
-- The grid point's travel time is actually the travel time from/to that node, not from the grid point's exact location
-- For grid points far from any road (e.g., in parks or undeveloped areas), the snap distance could be 200m+, adding unmeasured walking time to reach the road
-- Two adjacent grid points may snap to the same node and receive identical travel times, masking local variation
+Grid points are snapped to the **nearest road edge** (not just the nearest node), which dramatically reduces access distance for points along long road segments. Travel time is interpolated along the matched edge using the fractional position. Remaining limitations:
+- The **200 m cutoff** still applies — grid points farther than 200 m (2 grid cells) from any road edge are marked as unreachable (NaN). This affects areas like lakes, large parks, and undeveloped land.
+- The **access-leg penalty** uses straight-line (perpendicular) distance at 20% of modal speed. This is an approximation — real off-road paths may be longer or shorter than the perpendicular distance, and the 20% speed factor is a heuristic rather than a measured value.
+- Two grid points near the same edge segment may receive similar travel times, since they share the same edge's interpolated time. This is less of an issue than node-snapping (where both would get identical times) but still masks some local variation.
 
 ### 4. Dijkstra Routing Gaps
 
-Some grid points receive NaN travel times because the network node they snapped to is unreachable from all schools. This happens primarily in the **reversed drive network** (16 NaN points per drive scenario, 6 per bike, 0 for walk) where isolated one-way road segments have no inbound path from any school. These NaN gaps are **intentionally preserved** in the heatmap as transparent pixels — they represent real routing failures, not missing data. On the map, they appear as small holes (typically a few pixels) in the heatmap interior.
+Some grid points receive NaN travel times because neither endpoint of the matched edge is reachable from any school. This can happen due to disconnected components in the bidirectional graph — rare, but possible for isolated road segments that share no connected nodes with the main network component. Additionally, grid points beyond the 200 m access-distance cutoff are marked as NaN. These NaN gaps are **intentionally preserved** in the heatmap as transparent pixels — they represent real routing failures or unreachable areas, not missing data. On the map, they appear as small holes or transparent patches in the heatmap interior.
 
 ### 5. UTM-to-WGS84 Grid Rotation
 
@@ -196,7 +207,7 @@ The model treats all open schools as equally available regardless of capacity. I
 
 ### 9. Mode-Specific Limitations
 
-**Drive mode** uses the reversed graph to model grid→school travel. This correctly accounts for one-way streets but assumes the driver follows the shortest-time route. It does not model:
+**Drive mode** uses a bidirectional network (reverse edges added where missing) so Dijkstra from school outward gives symmetric grid→school times. It assumes the driver follows the shortest-time route. It does not model:
 - Parking and walking from a parking lot to the school entrance
 - Drop-off line queuing time
 - Route choice preferences (parents may avoid certain roads)
@@ -240,7 +251,7 @@ All travel time calculations are based on 2D network distance. Hill gradients, w
 | File | Description |
 |------|-------------|
 | `assets/maps/school_desert_map.html` | Interactive map with all scenarios, modes, and layers |
-| `data/processed/school_desert_grid.csv` | Raw data: 339,444 rows (16,164 grid points × 7 scenarios × 3 modes) |
+| `data/processed/school_desert_grid.csv` | Raw data: 339,675 rows (16,175 grid points × 7 scenarios × 3 modes) |
 | `data/cache/school_desert_tiffs/*.tif` | GeoTIFF rasters (WGS84) for each scenario/mode/layer combination |
 | `data/cache/nces_school_locations.csv` | School coordinates (input) |
 | `data/cache/chccs_district_boundary.gpkg` | District polygon (input) |
