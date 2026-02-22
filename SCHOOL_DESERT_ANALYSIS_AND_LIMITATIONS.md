@@ -80,7 +80,13 @@ For each travel mode, grid points are snapped to the road network using **edge-s
 3. **Access distance:** The perpendicular distance from grid point to matched edge is computed (vectorized via `shapely.distance`). Points more than 200 m (2 grid cells) from any edge are marked unreachable (NaN) — these represent lakes, large parks, and other off-network areas.
 4. **Fractional position:** The position along the matched edge is computed via `shapely.line_locate_point(normalized=True)`, yielding `f ∈ [0, 1]` where `f = 0` is the edge's start node and `f = 1` is the end node.
 5. **Travel time interpolation:** For each open school in the scenario, travel time is interpolated via both edge endpoints: `via_u = t_u + f × edge_time` and `via_v = t_v + (1−f) × edge_time`, where `t_u` and `t_v` are Dijkstra times from the school to the edge's start and end nodes respectively. The minimum of the two routes is selected.
-6. **Access-leg penalty:** An off-network penalty is added: `access_time = perpendicular_distance / (0.2 × modal_speed)`. The 20% speed factor accounts for straight-line distance being shorter than actual off-road paths (sidewalks, parking lots, driveways).
+6. **Access-leg penalty:** An off-network penalty is added: `access_time = perpendicular_distance / (factor × modal_speed)`, where the speed factor is mode-specific. Walk and bike access legs (crossing lawns, parking lots, sidewalks) happen at close to full modal speed; drive access legs (navigating driveways and parking lots) are much slower than road speed:
+
+   | Mode | Factor | Modal speed | Access speed | 50 m penalty |
+   |------|--------|-------------|--------------|--------------|
+   | Walk | 90% | 1.12 m/s (2.5 mph) | 1.01 m/s (2.3 mph) | 50 s |
+   | Bike | 80% | 5.36 m/s (12 mph) | 4.29 m/s (9.6 mph) | 12 s |
+   | Drive | 20% | 8.05 m/s (18 mph) | 1.61 m/s (3.6 mph) | 31 s |
 7. **Minimum across schools:** The minimum total time (network travel + access penalty) across all open schools is recorded, along with the identity of the nearest school. If no school reaches either endpoint of the matched edge, the travel time is NaN.
 
 **Scenarios evaluated:**
@@ -178,12 +184,13 @@ A Folium map is generated with:
 
 **Network edges are simplified by OSMnx.** Intermediate nodes on straight road segments are removed. This reduces computational cost but means the network cannot represent mid-block access points.
 
-### 3. Edge Snapping Approximation
+### 3. Edge Snapping and Access-Leg Approximation
 
 Grid points are snapped to the **nearest road edge** (not just the nearest node), which dramatically reduces access distance for points along long road segments. Travel time is interpolated along the matched edge using the fractional position. Remaining limitations:
 - The **200 m cutoff** still applies — grid points farther than 200 m (2 grid cells) from any road edge are marked as unreachable (NaN). This affects areas like lakes, large parks, and undeveloped land.
-- The **access-leg penalty** uses straight-line (perpendicular) distance at 20% of modal speed. This is an approximation — real off-road paths may be longer or shorter than the perpendicular distance, and the 20% speed factor is a heuristic rather than a measured value.
+- The **access-leg penalty** uses straight-line (perpendicular) distance at a mode-specific fraction of modal speed (walk 90%, bike 80%, drive 20%). The mode-specific factors reflect that pedestrians and cyclists traverse off-road access legs (lawns, parking lots) at near full speed, while drivers must navigate driveways and parking lots at much lower speed. This is still an approximation — real off-road paths may be longer or shorter than the perpendicular distance.
 - Two grid points near the same edge segment may receive similar travel times, since they share the same edge's interpolated time. This is less of an issue than node-snapping (where both would get identical times) but still masks some local variation.
+- **School self-times are not zero.** Even the injected school anchor points receive non-trivial travel times because (a) the school location may snap to an edge whose endpoints are distant from the school's Dijkstra source node in network terms, and (b) the perpendicular distance to the nearest edge adds an access penalty. Schools set back from the road network (accessed via driveways or paths not in OSM) are most affected. In the walk baseline, school self-times range from ~0.4 min (McDougle) to ~7 min (Ephesus), with most under 1.5 min. This primarily reflects missing pedestrian paths in OpenStreetMap rather than a modeling error.
 
 ### 4. Dijkstra Routing Gaps
 
@@ -217,6 +224,7 @@ The model treats all open schools as equally available regardless of capacity. I
 - Sidewalk connectivity gaps
 - Safe Routes to School infrastructure (or lack thereof)
 - Whether a route is suitable for an unaccompanied child
+- Schools set back from OSM walk edges (e.g., Ephesus, Rashkis) show inflated self-times because the school-to-road access path is not in the network
 
 **Bike mode** does not account for:
 - Whether bike infrastructure exists on the route

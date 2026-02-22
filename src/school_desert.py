@@ -569,11 +569,12 @@ def compute_desert_scores(
         snap_end   = eidx["end_nodes"][nearest_ei]
         snap_etime = eidx["edge_times"][nearest_ei]
 
-        # Off-network travel uses 20% of modal speed: straight-line Euclidean
-        # distance is shorter than real road paths, so full-speed access legs
-        # would make off-road pixels *faster* than on-road ones.
-        ACCESS_SPEED_PENALTY = 0.2
-        access_speed = ACCESS_SPEED_PENALTY * {
+        # Off-network access-leg speed as a fraction of modal speed.
+        # Walk/bike access legs (sidewalks, lawns, parking lots) are close
+        # to full speed; drive access legs (driveways, parking lots) are
+        # much slower than road speed.
+        ACCESS_SPEED_FACTOR = {"walk": 0.9, "bike": 0.8, "drive": 0.2}[mode]
+        access_speed = ACCESS_SPEED_FACTOR * {
             "walk": WALK_SPEED_MPS, "bike": BIKE_SPEED_MPS,
             "drive": DEFAULT_DRIVE_EFFECTIVE_MPH * 0.44704,
         }[mode]
