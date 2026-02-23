@@ -86,18 +86,35 @@ save_ephesus/
 ├── CLAUDE.md                    # This file - project guide
 ├── requirements.txt
 ├── src/
-│   ├── visualizations.py        # Chart generation
-│   └── report_generator.py      # HTML/PDF report
-├── assets/charts/               # Generated charts
-├── assets/logos/                # School logo (ephesus-logo.png)
+│   ├── visualizations.py        # Chart generation (report figures)
+│   ├── report_generator.py      # HTML/PDF report
+│   ├── school_desert.py         # Travel-time & affected-household analysis
+│   ├── road_pollution.py        # TRAP / tree canopy spatial analysis
+│   ├── data_processing.py       # Shared data loading utilities
+│   ├── childcare_geocode.py     # Childcare proximity analysis
+│   └── property_data.py         # Orange County parcel data processing
+├── assets/
+│   ├── charts/                  # Generated report charts (PNG)
+│   ├── logos/                   # School logo (ephesus-logo.png)
+│   └── maps/                   # Interactive HTML maps
+│       ├── school_community_map.html        # School closure scenario explorer
+│       ├── road_pollution_combined_map.html  # TRAP + tree canopy layers
+│       └── ...                           # Additional map outputs
 ├── templates/
 │   └── report_template.html     # Final report HTML
 ├── output/
 │   └── ephesus_report.pdf
 ├── data/
 │   ├── raw/
-│   │   └── teacher_surveys/          # NC TWC Survey 2024 CSV files
+│   │   ├── teacher_surveys/          # NC TWC Survey 2024 CSV files
+│   │   └── properties/              # Orange County parcel data (GeoPackage)
+│   ├── cache/                       # Downloaded/cached data (not committed)
+│   │   ├── nces_school_locations.csv  # NCES EDGE school coordinates
+│   │   ├── chccs_district_boundary.gpkg
+│   │   ├── network_*.graphml         # OSM road networks (drive/bike/walk)
+│   │   └── school_desert_tiffs/      # GeoTIFF rasters per scenario/mode
 │   └── processed/
+│       ├── school_desert_grid.csv     # Grid travel times (all scenarios/modes)
 │       ├── bond_presentation_2024.md  # Bond decision framework
 │       ├── teacher_survey_analysis.md # Teacher survey findings
 │       ├── enrollment_history.csv     # 35-year enrollment (1990-2024)
@@ -114,11 +131,23 @@ save_ephesus/
 ## Commands
 
 ```bash
-# Generate visualizations
+# Generate report visualizations (charts)
 python src/visualizations.py
 
 # Generate report (HTML; print to PDF from browser)
 python src/report_generator.py
+
+# Run school desert analysis (travel-time heatmaps + affected-household histograms)
+# Requires: cached road networks, NCES school locations, district boundary,
+#           and property centroids (from property_data.py)
+# Outputs:  assets/maps/school_community_map.html, data/processed/school_desert_grid.csv
+python src/school_desert.py
+
+# Run TRAP / tree canopy analysis
+python src/road_pollution.py
+
+# Process Orange County parcel data → centroids GeoPackage
+python src/property_data.py
 ```
 
 ---

@@ -1,5 +1,5 @@
 """
-School Desert Analysis for CHCCS Elementary Schools
+School Community Analysis for CHCCS Elementary Schools
 
 Quantifies the geographic impact of school closures by computing travel times
 (drive, bike, walk) from every point in the school district to the nearest
@@ -26,14 +26,37 @@ Speed model sources:
   via Shapely STRtree, with travel time interpolated along the matched edge.
   Longitudes scaled by cos(latitude) for metric-approximate queries in WGS84.
 
+Affected-household analysis:
+- Residential parcel centroids (~21K from Orange County tax records) are
+  snapped to the nearest grid point via cKDTree with cos(lat) scaling.
+- A parcel is "affected" by a closure scenario if its nearest grid point has
+  delta_minutes > 0 for that scenario+mode (travel time increased).
+- For each scenario × mode, histograms of assessed value and years since last
+  sale are pre-rendered as base64 PNGs and embedded in the HTML map.
+- The chart panel below the map updates when the user changes scenario or mode.
+
 Data sources:
 - Road networks: OpenStreetMap via OSMnx
 - School locations: NCES EDGE Public School Locations 2023-24
 - District boundary: Census TIGER/Line Unified School Districts 2023
+- Residential parcels: Orange County GIS (combined_data_centroids.gpkg)
 
 Outputs:
-- assets/maps/school_desert_map.html (interactive map with scenario switching)
+- assets/maps/school_community_map.html (interactive map with scenario switching
+  and affected-household histograms)
 - data/processed/school_desert_grid.csv (raw grid travel time data)
+
+Assumptions & limitations:
+- Travel time model uses static speeds; no real-time traffic or turn penalties.
+- "Affected" is binary (delta > 0); does not weight by magnitude of increase.
+- Parcel-to-grid snapping uses straight-line nearest-point, not network distance.
+- Assessed values are from the latest Orange County tax records and may lag
+  current market values.
+- years_since_sale reflects the most recent recorded deed transfer; properties
+  with no recorded sale show NaN and are excluded from that histogram.
+- Grid points > 200 m from any road edge are marked unreachable (NaN).
+- The analysis assumes all remaining schools absorb displaced students with
+  no capacity constraints.
 """
 
 import base64
@@ -518,9 +541,9 @@ def create_grid(district_polygon, resolution_m: int = GRID_RESOLUTION_M) -> gpd.
 
 
 # ---------------------------------------------------------------------------
-# 6. Compute desert scores
+# 6. Compute travel scores
 # ---------------------------------------------------------------------------
-def compute_desert_scores(
+def compute_travel_scores(
     grid: gpd.GeoDataFrame,
     travel_times_by_mode: dict,
     graphs: dict,
@@ -633,7 +656,7 @@ def compute_desert_scores(
                 })
 
     df = pd.DataFrame(results)
-    _progress(f"Computed {len(df)} desert scores")
+    _progress(f"Computed {len(df)} travel scores")
     return df
 
 
@@ -816,7 +839,91 @@ def encode_value_grid(values_2d: np.ndarray) -> str:
 
 
 # ---------------------------------------------------------------------------
-# 8. Create interactive map
+# 8a. Render affected-household histograms
+# ---------------------------------------------------------------------------
+def _render_affected_charts(affected_data: dict, style: str = "affected") -> dict:
+    """Render histogram PNGs for affected parcels per scenario|mode.
+
+    Args:
+        affected_data: {"scenario|mode": {"count": N, "values": ndarray, "years": ndarray}}
+        style: "affected" (blue/green) or "walkzone" (orange/purple)
+
+    Returns:
+        {"scenario|mode": {"count": N, "chart_value": b64, "chart_years": b64}}
+    """
+    if style == "walkzone":
+        color_value, color_years = "#d35400", "#8e44ad"
+        label_suffix = "Walk-Zone Parcels"
+    else:
+        color_value, color_years = "#4a90d9", "#6ab04c"
+        label_suffix = "Affected Parcels"
+
+    result = {}
+    for key, info in affected_data.items():
+        count = info["count"]
+        if count == 0:
+            result[key] = {"count": 0}
+            continue
+
+        entry = {"count": count}
+
+        # Chart 1 — Assessed Value
+        values = info["values"]
+        if len(values) > 0:
+            fig, ax = plt.subplots(figsize=(4.5, 2.5), dpi=100)
+            ax.hist(values, bins=25, color=color_value, edgecolor="white", linewidth=0.5)
+            median_val = np.median(values)
+            ax.axvline(median_val, color="#dc3545", linestyle="--", linewidth=1.5)
+            ax.annotate(
+                f"Median: ${median_val:,.0f}",
+                xy=(median_val, ax.get_ylim()[1] * 0.85),
+                xytext=(10, 0), textcoords="offset points",
+                fontsize=9, color="#dc3545", fontweight="bold",
+            )
+            ax.set_xlabel("Assessed Value ($)", fontsize=10)
+            ax.set_ylabel("Parcels", fontsize=10)
+            ax.set_title(f"Assessed Value — {count:,} {label_suffix}", fontsize=11, fontweight="bold")
+            ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f"${x:,.0f}"))
+            ax.tick_params(labelsize=8)
+            plt.xticks(rotation=30)
+            fig.tight_layout()
+            buf = io.BytesIO()
+            fig.savefig(buf, format="png", bbox_inches="tight")
+            plt.close(fig)
+            buf.seek(0)
+            entry["chart_value"] = base64.b64encode(buf.read()).decode("utf-8")
+
+        # Chart 2 — Years Since Last Sale
+        years = info["years"]
+        if len(years) > 0:
+            fig, ax = plt.subplots(figsize=(4.5, 2.5), dpi=100)
+            ax.hist(years, bins=25, color=color_years, edgecolor="white", linewidth=0.5)
+            median_yr = np.median(years)
+            ax.axvline(median_yr, color="#dc3545", linestyle="--", linewidth=1.5)
+            ax.annotate(
+                f"Median: {median_yr:.0f} yr",
+                xy=(median_yr, ax.get_ylim()[1] * 0.85),
+                xytext=(10, 0), textcoords="offset points",
+                fontsize=9, color="#dc3545", fontweight="bold",
+            )
+            ax.set_xlabel("Years Since Last Sale", fontsize=10)
+            ax.set_ylabel("Parcels", fontsize=10)
+            ax.set_title(f"Years Since Sale — {count:,} {label_suffix}", fontsize=11, fontweight="bold")
+            ax.tick_params(labelsize=8)
+            fig.tight_layout()
+            buf = io.BytesIO()
+            fig.savefig(buf, format="png", bbox_inches="tight")
+            plt.close(fig)
+            buf.seek(0)
+            entry["chart_years"] = base64.b64encode(buf.read()).decode("utf-8")
+
+        result[key] = entry
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# 8b. Create interactive map
 # ---------------------------------------------------------------------------
 def create_map(
     heatmap_data: dict,
@@ -826,6 +933,10 @@ def create_map(
     hover_grids: dict = None,
     grid_meta: dict = None,
     network_geojsons: dict = None,
+    property_points: list = None,
+    affected_charts: dict = None,
+    walk_zones_geojson: dict = None,
+    walk_zone_charts: dict = None,
 ) -> folium.Map:
     """Create interactive Folium map with scenario/mode switching.
 
@@ -837,12 +948,17 @@ def create_map(
         hover_grids: {"scenario|mode|type": base64_float32_grid}
         grid_meta: dict with UTM/WGS84 bounds and grid dimensions
         network_geojsons: {mode: geojson_dict} for road network overlay
+        property_points: list of dicts with residential parcel centroids
+        affected_charts: {"scenario|mode": {"count": N, "chart_value": b64, "chart_years": b64}}
+        walk_zones_geojson: GeoJSON FeatureCollection of dissolved walk zone polygons
+        walk_zone_charts: {"scenario": {"count": N, "chart_value": b64, "chart_years": b64}}
     """
     m = folium.Map(
         location=CHAPEL_HILL_CENTER,
         zoom_start=12,
         tiles="cartodbpositron",
         control_scale=True,
+        prefer_canvas=True,
     )
 
     # Add district boundary
@@ -871,6 +987,10 @@ def create_map(
     control_html = _build_control_html(
         heatmap_data, school_data, hover_grids or {}, grid_meta,
         network_geojsons=network_geojsons,
+        property_points=property_points or [],
+        affected_charts=affected_charts,
+        walk_zones_geojson=walk_zones_geojson,
+        walk_zone_charts=walk_zone_charts,
     )
     m.get_root().html.add_child(folium.Element(control_html))
 
@@ -881,11 +1001,15 @@ def _build_control_html(
     heatmap_data: dict, schools: list,
     hover_grids: dict, grid_meta: dict,
     network_geojsons: dict = None,
+    property_points: list = None,
+    affected_charts: dict = None,
+    walk_zones_geojson: dict = None,
+    walk_zone_charts: dict = None,
 ) -> str:
     """Build HTML/CSS/JS for scenario/mode/layer switching controls.
 
     Creates L.imageOverlay instances directly in JS (bypassing Folium)
-    and stores them in a dictionary for direct access by updateDesertMap().
+    and stores them in a dictionary for direct access by updateCommunityMap().
     Includes hover tooltip that reads values from embedded Float32 grids.
     """
 
@@ -909,6 +1033,10 @@ def _build_control_html(
     hover_grids_json = json.dumps(hover_grids)
     grid_meta_json = json.dumps(grid_meta) if grid_meta else "null"
     network_edges_json = json.dumps(network_geojsons or {})
+    property_points_json = json.dumps(property_points or [])
+    affected_charts_json = json.dumps(affected_charts or {})
+    walk_zones_geojson_json = json.dumps(walk_zones_geojson or {})
+    walk_zone_charts_json = json.dumps(walk_zone_charts or {})
 
     return f"""
 <style>
@@ -918,56 +1046,62 @@ def _build_control_html(
     image-rendering: -moz-crisp-edges;
     image-rendering: crisp-edges;
 }}
-#desert-controls {{
-    position: fixed;
-    top: 10px;
-    right: 10px;
-    z-index: 1000;
+#community-controls {{
+    flex: 0 0 280px;
+    width: 280px;
+    height: 100vh;
+    overflow-y: auto;
     background: white;
     padding: 15px;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    border-left: 1px solid #dee2e6;
+    box-shadow: -2px 0 8px rgba(0,0,0,0.1);
     font-family: 'Segoe UI', Tahoma, sans-serif;
     font-size: 13px;
-    max-width: 260px;
-    max-height: 90vh;
-    overflow-y: auto;
+    box-sizing: border-box;
 }}
-#desert-controls h3 {{
+#main-column {{
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    height: 100vh;
+    overflow: hidden;
+}}
+#community-controls h3 {{
     margin: 0 0 10px 0;
     font-size: 15px;
     color: #333;
     border-bottom: 2px solid {EPHESUS_COLOR};
     padding-bottom: 5px;
 }}
-#desert-controls label {{
+#community-controls label {{
     display: block;
     margin: 3px 0;
     cursor: pointer;
     padding: 2px 4px;
     border-radius: 3px;
 }}
-#desert-controls label:hover {{
+#community-controls label:hover {{
     background: #f0f0f0;
 }}
-#desert-controls .section-title {{
+#community-controls .section-title {{
     font-weight: bold;
     margin: 10px 0 5px 0;
     color: #555;
     font-size: 12px;
     text-transform: uppercase;
 }}
-#desert-legend {{
+#community-legend {{
     margin-top: 10px;
     padding-top: 8px;
     border-top: 1px solid #ddd;
 }}
-#desert-legend .gradient-bar {{
+#community-legend .gradient-bar {{
     height: 12px;
     border-radius: 3px;
     margin: 4px 0;
 }}
-#desert-legend .range-labels {{
+#community-legend .range-labels {{
     display: flex;
     justify-content: space-between;
     font-size: 11px;
@@ -984,7 +1118,7 @@ def _build_control_html(
     color: {EPHESUS_COLOR};
     font-weight: bold;
 }}
-#desert-tooltip {{
+#community-tooltip {{
     position: fixed;
     z-index: 2000;
     background: rgba(0,0,0,0.8);
@@ -997,10 +1131,82 @@ def _build_control_html(
     display: none;
     white-space: nowrap;
 }}
+#property-legend {{
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid #eee;
+    display: none;
+}}
+#property-legend .gradient-bar {{
+    height: 10px;
+    border-radius: 3px;
+    margin: 3px 0;
+    background: linear-gradient(to right, #ffffcc, #a1dab4, #41b6c4, #225ea8);
+}}
+#property-legend .range-labels {{
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: #666;
+}}
+#affected-panel {{
+    background: #f8f9fa;
+    border-top: 2px solid #dee2e6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    padding: 10px 24px;
+    overflow-y: auto;
+    box-sizing: border-box;
+    flex-wrap: wrap;
+}}
+#affected-panel .chart-container {{
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    justify-content: center;
+}}
+#affected-panel img {{
+    max-height: calc(35vh - 40px);
+    width: auto;
+    border-radius: 4px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+}}
+#affected-count-label {{
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    font-size: 14px;
+    color: #555;
+    text-align: center;
+    min-width: 120px;
+    white-space: nowrap;
+}}
+#affected-count-label .count {{
+    font-size: 28px;
+    font-weight: bold;
+    color: #333;
+    display: block;
+    line-height: 1.2;
+}}
+#walkzone-count-label {{
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    font-size: 14px;
+    color: #555;
+    text-align: center;
+    min-width: 120px;
+    white-space: nowrap;
+}}
+#walkzone-count-label .count {{
+    font-size: 28px;
+    font-weight: bold;
+    display: block;
+    line-height: 1.2;
+}}
 </style>
 
-<div id="desert-controls">
-    <h3>School Desert Analysis</h3>
+<div id="community-controls">
+    <h3>School Community Analysis</h3>
 
     <div class="section-title">Scenario</div>
     <div id="scenario-options"></div>
@@ -1009,14 +1215,20 @@ def _build_control_html(
     <div id="mode-options"></div>
 
     <div class="section-title">Layer</div>
-    <label><input type="radio" name="layer_type" value="abs" checked onchange="window.updateDesertMap()"> Travel Time</label>
-    <label><input type="radio" name="layer_type" value="delta" onchange="window.updateDesertMap()"> Change from Baseline</label>
+    <label><input type="radio" name="layer_type" value="abs" checked onchange="window.updateCommunityMap()"> Travel Time</label>
+    <label><input type="radio" name="layer_type" value="delta" onchange="window.updateCommunityMap()"> Change from Baseline</label>
 
     <label style="display:block;margin-top:8px">
-      <input type="checkbox" id="show-network" checked onchange="window.updateDesertMap()"> Show road network
+      <input type="checkbox" id="show-network" checked onchange="window.updateCommunityMap()"> Show road network
+    </label>
+    <label style="display:block;margin-top:4px">
+      <input type="checkbox" id="show-properties" onchange="window.togglePropertyLayer()"> Show residential parcels
+    </label>
+    <label style="display:block;margin-top:4px">
+      <input type="checkbox" id="show-walk-zones" onchange="window.toggleWalkZones()"> Show walk zones
     </label>
 
-    <div id="desert-legend">
+    <div id="community-legend">
         <div class="section-title">Legend</div>
         <div id="legend-label"></div>
         <div class="gradient-bar" id="legend-bar"></div>
@@ -1027,8 +1239,41 @@ def _build_control_html(
     </div>
 
     <div class="school-marker-info" id="school-info"></div>
+
+    <div id="property-legend">
+        <div style="font-weight:bold;font-size:11px;color:#555;margin-bottom:2px">Years since last sale</div>
+        <div class="gradient-bar"></div>
+        <div class="range-labels">
+            <span>0 yr</span>
+            <span style="color:#999">gray = no sale</span>
+            <span>50+ yr</span>
+        </div>
+    </div>
+
+    <div id="walkzone-legend" style="display:none;margin-top:6px;padding-top:6px;border-top:1px solid #eee">
+        <div style="font-weight:bold;font-size:11px;color:#555;margin-bottom:2px">Elementary walk zones</div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:10px">
+            <span style="display:inline-block;width:14px;height:14px;background:rgba(52,152,219,0.25);border:2px solid #3498db;border-radius:2px"></span> Open school
+            <span style="display:inline-block;width:14px;height:14px;background:rgba(231,76,60,0.25);border:2px solid #e74c3c;border-radius:2px"></span> Closed school
+        </div>
+    </div>
 </div>
-<div id="desert-tooltip"></div>
+<div id="community-tooltip"></div>
+<div id="affected-panel">
+    <div id="affected-count-label">Select a closure scenario to see affected households.</div>
+    <div class="chart-container">
+        <img id="chart-value" style="display:none" alt="Assessed value histogram" />
+        <img id="chart-years" style="display:none" alt="Years since sale histogram" />
+    </div>
+    <div id="walkzone-section" style="display:none">
+        <div style="border-top:1px solid #ccc;margin:6px 0"></div>
+        <div id="walkzone-count-label"></div>
+        <div class="chart-container">
+            <img id="chart-wz-value" style="display:none" alt="Walk-zone assessed value histogram" />
+            <img id="chart-wz-years" style="display:none" alt="Walk-zone years since sale histogram" />
+        </div>
+    </div>
+</div>
 
 <script>
 (function() {{
@@ -1041,12 +1286,18 @@ def _build_control_html(
     var HOVER_GRIDS_B64 = {hover_grids_json};
     var GRID_META = {grid_meta_json};
     var NETWORK_EDGES = {network_edges_json};
+    var PROPERTY_POINTS = {property_points_json};
+    var AFFECTED_CHARTS = {affected_charts_json};
+    var WALK_ZONES_GEO = {walk_zones_geojson_json};
+    var WALK_ZONE_CHARTS = {walk_zone_charts_json};
 
     var overlayLayers = {{}};
     var networkLayers = {{}};
     var schoolMarkers = [];
     var currentOverlayKey = null;
-    var tooltip = document.getElementById('desert-tooltip');
+    var tooltip = document.getElementById('community-tooltip');
+    var propertyLayer = null;
+    var walkZoneLayer = null;
 
     // --- Hover grid decoding ---
     var decodedGrids = {{}};
@@ -1168,8 +1419,129 @@ def _build_control_html(
         }});
     }}
 
-    // Define updateDesertMap BEFORE radio buttons are created
-    window.updateDesertMap = function() {{
+    // --- Property parcel layer ---
+    function getPropertyColor(yrs) {{
+        if (yrs === null || yrs === undefined || isNaN(yrs)) return '#999';
+        var t = Math.min(yrs, 50) / 50;  // clamp to 0-50
+        // Interpolate: yellow-green (#ffffcc) → teal (#41b6c4) → dark blue (#225ea8)
+        var r, g, b;
+        if (t < 0.5) {{
+            var s = t * 2;
+            r = Math.round(255 * (1 - s) + 65 * s);
+            g = Math.round(255 * (1 - s) + 182 * s);
+            b = Math.round(204 * (1 - s) + 196 * s);
+        }} else {{
+            var s = (t - 0.5) * 2;
+            r = Math.round(65 * (1 - s) + 34 * s);
+            g = Math.round(182 * (1 - s) + 94 * s);
+            b = Math.round(196 * (1 - s) + 168 * s);
+        }}
+        return 'rgb(' + r + ',' + g + ',' + b + ')';
+    }}
+
+    function initPropertyLayer(map) {{
+        if (propertyLayer) return;
+        propertyLayer = L.layerGroup();
+        PROPERTY_POINTS.forEach(function(pt) {{
+            var color = getPropertyColor(pt.years_since_sale);
+            var m = L.circleMarker([pt.lat, pt.lon], {{
+                radius: 3,
+                fillColor: color,
+                color: color,
+                weight: 0.5,
+                fillOpacity: 0.7,
+                opacity: 0.8,
+            }});
+            var popupLines = ['<b>PIN:</b> ' + (pt.pin || '—')];
+            if (pt.luc) popupLines.push('<b>Land use:</b> ' + pt.luc);
+            if (pt.imp_vac) popupLines.push('<b>Status:</b> ' + pt.imp_vac);
+            if (pt.valuation) popupLines.push('<b>Valuation:</b> $' + Number(pt.valuation).toLocaleString());
+            if (pt.sqft) popupLines.push('<b>Sq ft:</b> ' + Number(pt.sqft).toLocaleString());
+            if (pt.year_built) popupLines.push('<b>Year built:</b> ' + pt.year_built);
+            if (pt.acres) popupLines.push('<b>Acres:</b> ' + Number(pt.acres).toFixed(2));
+            if (pt.sale_date) popupLines.push('<b>Last sale:</b> ' + pt.sale_date);
+            if (pt.sale_price) popupLines.push('<b>Sale price:</b> $' + Number(pt.sale_price).toLocaleString());
+            if (pt.years_since_sale !== null && pt.years_since_sale !== undefined)
+                popupLines.push('<b>Years since sale:</b> ' + pt.years_since_sale);
+            if (pt.subdivision) popupLines.push('<b>Subdivision:</b> ' + pt.subdivision);
+            if (pt.condo_name) popupLines.push('<b>Condo:</b> ' + pt.condo_name);
+            if (pt.appraised_value) popupLines.push('<b>Appraised:</b> $' + Number(pt.appraised_value).toLocaleString());
+            m.bindPopup(popupLines.join('<br>'), {{maxWidth: 280}});
+            propertyLayer.addLayer(m);
+        }});
+    }}
+
+    window.togglePropertyLayer = function() {{
+        var map = getMap();
+        if (!map) return;
+        var cb = document.getElementById('show-properties');
+        var legend = document.getElementById('property-legend');
+        if (cb && cb.checked) {{
+            initPropertyLayer(map);
+            propertyLayer.addTo(map);
+            if (legend) legend.style.display = 'block';
+        }} else {{
+            if (propertyLayer) map.removeLayer(propertyLayer);
+            if (legend) legend.style.display = 'none';
+        }}
+    }};
+
+    // --- Walk zone layer ---
+    function initWalkZoneLayer(map) {{
+        if (!WALK_ZONES_GEO || !WALK_ZONES_GEO.features) return;
+        walkZoneLayer = L.geoJSON(WALK_ZONES_GEO, {{
+            style: function(feature) {{
+                return {{
+                    fillColor: 'rgba(52,152,219,0.25)',
+                    color: '#3498db',
+                    weight: 2,
+                    fillOpacity: 0.25,
+                    opacity: 0.8
+                }};
+            }},
+            onEachFeature: function(feature, layer) {{
+                if (feature.properties && feature.properties.school_name) {{
+                    layer.bindPopup('<b>Walk Zone:</b> ' + feature.properties.school_name);
+                }}
+            }}
+        }});
+    }}
+
+    function styleWalkZones() {{
+        if (!walkZoneLayer) return;
+        var scenario = getSelectedValue('scenario');
+        var closedSchools = SCENARIOS[scenario] || [];
+        walkZoneLayer.eachLayer(function(layer) {{
+            var name = layer.feature.properties.school_name;
+            var isClosed = closedSchools.indexOf(name) !== -1;
+            layer.setStyle({{
+                fillColor: isClosed ? 'rgba(231,76,60,0.25)' : 'rgba(52,152,219,0.25)',
+                color: isClosed ? '#e74c3c' : '#3498db',
+                weight: 2,
+                fillOpacity: 0.25,
+                opacity: 0.8
+            }});
+        }});
+    }}
+
+    window.toggleWalkZones = function() {{
+        var map = getMap();
+        if (!map) return;
+        var cb = document.getElementById('show-walk-zones');
+        var legend = document.getElementById('walkzone-legend');
+        if (cb && cb.checked) {{
+            if (!walkZoneLayer) initWalkZoneLayer(map);
+            if (walkZoneLayer) walkZoneLayer.addTo(map);
+            if (legend) legend.style.display = 'block';
+            styleWalkZones();
+        }} else {{
+            if (walkZoneLayer) map.removeLayer(walkZoneLayer);
+            if (legend) legend.style.display = 'none';
+        }}
+    }};
+
+    // Define updateCommunityMap BEFORE radio buttons are created
+    window.updateCommunityMap = function() {{
         var scenario = getSelectedValue('scenario');
         var mode = getSelectedValue('mode');
         var layerType = getSelectedValue('layer_type');
@@ -1242,6 +1614,72 @@ def _build_control_html(
         }} else {{
             infoDiv.innerHTML = 'All 11 schools open';
         }}
+
+        // Update affected-household charts
+        var chartKey = scenario + '|' + mode;
+        var panel = document.getElementById('affected-panel');
+        var countLabel = document.getElementById('affected-count-label');
+        var chartValue = document.getElementById('chart-value');
+        var chartYears = document.getElementById('chart-years');
+
+        if (scenario === 'baseline') {{
+            countLabel.innerHTML = 'Baseline &mdash; no school closures';
+            chartValue.style.display = 'none';
+            chartYears.style.display = 'none';
+        }} else if (AFFECTED_CHARTS[chartKey]) {{
+            var ac = AFFECTED_CHARTS[chartKey];
+            countLabel.innerHTML = '<span class="count">' + ac.count.toLocaleString() + '</span>affected households';
+            if (ac.chart_value) {{
+                chartValue.src = 'data:image/png;base64,' + ac.chart_value;
+                chartValue.style.display = 'block';
+            }} else {{
+                chartValue.style.display = 'none';
+            }}
+            if (ac.chart_years) {{
+                chartYears.src = 'data:image/png;base64,' + ac.chart_years;
+                chartYears.style.display = 'block';
+            }} else {{
+                chartYears.style.display = 'none';
+            }}
+        }} else {{
+            countLabel.textContent = 'No affected-household data for this scenario.';
+            chartValue.style.display = 'none';
+            chartYears.style.display = 'none';
+        }}
+
+        // Update walk-zone charts
+        var wzSection = document.getElementById('walkzone-section');
+        var wzLabel = document.getElementById('walkzone-count-label');
+        var wzChartVal = document.getElementById('chart-wz-value');
+        var wzChartYrs = document.getElementById('chart-wz-years');
+
+        if (scenario === 'baseline') {{
+            wzSection.style.display = 'none';
+        }} else if (WALK_ZONE_CHARTS[scenario]) {{
+            var wz = WALK_ZONE_CHARTS[scenario];
+            wzSection.style.display = 'block';
+            wzLabel.innerHTML = '<span class="count" style="color:#d35400">' + wz.count.toLocaleString() + '</span>walk-zone households';
+            if (wz.chart_value) {{
+                wzChartVal.src = 'data:image/png;base64,' + wz.chart_value;
+                wzChartVal.style.display = 'block';
+            }} else {{
+                wzChartVal.style.display = 'none';
+            }}
+            if (wz.chart_years) {{
+                wzChartYrs.src = 'data:image/png;base64,' + wz.chart_years;
+                wzChartYrs.style.display = 'block';
+            }} else {{
+                wzChartYrs.style.display = 'none';
+            }}
+        }} else {{
+            wzSection.style.display = 'block';
+            wzLabel.textContent = 'No walk zone defined for this school.';
+            wzChartVal.style.display = 'none';
+            wzChartYrs.style.display = 'none';
+        }}
+
+        // Update walk-zone polygon styling if visible
+        styleWalkZones();
     }};
 
     // Populate scenario radio buttons
@@ -1253,7 +1691,7 @@ def _build_control_html(
         radio.type = 'radio';
         radio.name = 'scenario';
         radio.value = key;
-        radio.onchange = function() {{ window.updateDesertMap(); }};
+        radio.onchange = function() {{ window.updateCommunityMap(); }};
         if (first) {{ radio.checked = true; first = false; }}
         label.appendChild(radio);
         label.appendChild(document.createTextNode(' ' + SCENARIO_LABELS[key]));
@@ -1269,16 +1707,35 @@ def _build_control_html(
         radio.type = 'radio';
         radio.name = 'mode';
         radio.value = key;
-        radio.onchange = function() {{ window.updateDesertMap(); }};
+        radio.onchange = function() {{ window.updateCommunityMap(); }};
         if (first) {{ radio.checked = true; first = false; }}
         label.appendChild(radio);
         label.appendChild(document.createTextNode(' ' + MODE_LABELS[key]));
         modeDiv.appendChild(label);
     }}
 
-    // Initialize on page load
+    // Initialize on page load: move affected-panel below map div and resize
     setTimeout(function() {{
-        window.updateDesertMap();
+        var mapDiv = document.querySelector('.folium-map');
+        var panel = document.getElementById('affected-panel');
+        var controls = document.getElementById('community-controls');
+        if (mapDiv && panel) {{
+            document.documentElement.style.cssText = 'height:100vh;margin:0;overflow:hidden';
+            document.body.style.cssText = 'display:flex;flex-direction:row;height:100vh;margin:0;overflow:hidden';
+            // Create left-column wrapper for map + affected-panel
+            var wrapper = document.createElement('div');
+            wrapper.id = 'main-column';
+            mapDiv.parentNode.insertBefore(wrapper, mapDiv);
+            wrapper.appendChild(mapDiv);
+            wrapper.appendChild(panel);
+            mapDiv.style.cssText += ';flex:0 0 65vh;height:65vh;position:relative;';
+            panel.style.cssText += ';flex:0 0 35vh;height:35vh;';
+            // Move controls to be direct body child (sidebar on right)
+            if (controls) document.body.appendChild(controls);
+            var map = getMap();
+            if (map) setTimeout(function() {{ map.invalidateSize(); }}, 100);
+        }}
+        window.updateCommunityMap();
     }}, 500);
 }})();
 </script>
@@ -1289,9 +1746,9 @@ def _build_control_html(
 # 9. Main
 # ---------------------------------------------------------------------------
 def main():
-    """Run full school desert analysis."""
+    """Run full school community analysis."""
     print("=" * 60)
-    print("School Desert Analysis")
+    print("School Community Analysis")
     print("=" * 60)
 
     ensure_directories()
@@ -1304,6 +1761,35 @@ def main():
     print("\n[2/9] Loading district boundary ...")
     district_gdf = download_district_boundary(schools)
     district_polygon = district_gdf.union_all()
+
+    # 2b. Load and dissolve elementary walk zones
+    walk_zones_geojson = None
+    walk_zones_gdf = None
+    walk_zone_shp = PROJECT_ROOT / "data" / "raw" / "properties" / "CHCCS" / "CHCCS.shp"
+    if walk_zone_shp.exists():
+        _progress("Loading elementary walk zones from CHCCS shapefile ...")
+        wz_raw = gpd.read_file(walk_zone_shp)
+        wz_walk = wz_raw[wz_raw["ESWALK"] == "Y"].copy()
+        if len(wz_walk) > 0:
+            wz_walk = wz_walk.to_crs(CRS_WGS84)
+            walk_zones_gdf = wz_walk.dissolve(by="ENAME").reset_index()
+            walk_zones_gdf = walk_zones_gdf.rename(columns={"ENAME": "school_name"})
+            # Build GeoJSON for JS
+            features = []
+            for _, row in walk_zones_gdf.iterrows():
+                features.append({
+                    "type": "Feature",
+                    "geometry": json.loads(gpd.GeoSeries([row.geometry]).to_json())["features"][0]["geometry"],
+                    "properties": {"school_name": row["school_name"]},
+                })
+            walk_zones_geojson = {"type": "FeatureCollection", "features": features}
+            _progress(f"  Dissolved {len(wz_walk)} features -> {len(walk_zones_gdf)} walk zone polygons")
+            for _, row in walk_zones_gdf.iterrows():
+                _progress(f"    {row['school_name']}")
+        else:
+            _progress("  No ESWALK='Y' features found")
+    else:
+        print("  (Walk zone shapefile not found — skipping walk zone overlay)")
 
     # 3. Download/load road networks
     print("\n[3/9] Loading road networks ...")
@@ -1344,11 +1830,27 @@ def main():
         crs=CRS_WGS84,
     )
     grid = pd.concat([grid, school_pts], ignore_index=True)
+    school_anchor_ids = dict(zip(
+        range(max_grid_id + 1, max_grid_id + 1 + len(schools)),
+        schools["school"].values,
+    ))
     _progress(f"Added {len(schools)} school locations as grid anchor points")
 
-    # 6. Compute desert scores
-    print("\n[6/9] Computing desert scores for all scenarios ...")
-    scores_df = compute_desert_scores(grid, travel_times_by_mode, graphs, SCENARIOS)
+    # 6. Compute travel scores
+    print("\n[6/9] Computing travel scores for all scenarios ...")
+    scores_df = compute_travel_scores(grid, travel_times_by_mode, graphs, SCENARIOS)
+
+    # School locations get zero travel time when open in the scenario
+    for scenario_name, closed_schools in SCENARIOS.items():
+        open_anchors = {gid: name for gid, name in school_anchor_ids.items()
+                        if name not in closed_schools}
+        mask = (scores_df["scenario"] == scenario_name) & scores_df["grid_id"].isin(open_anchors)
+        scores_df.loc[mask, "min_time_seconds"] = 0.0
+        scores_df.loc[mask, "nearest_school"] = (
+            scores_df.loc[mask, "grid_id"].map(open_anchors)
+        )
+    n_zeroed = (scores_df["min_time_seconds"] == 0.0).sum()
+    _progress(f"Zeroed travel time for {n_zeroed} school-anchor cells across all scenarios/modes")
 
     # 7. Compute delta (change from baseline)
     print("\n[7/9] Computing deltas ...")
@@ -1446,12 +1948,123 @@ def main():
 
     _progress(f"GeoTIFFs saved to {TIFF_DIR}")
 
-    # 9. Create interactive map
-    print("\n[9/9] Creating interactive map ...")
-    m = create_map(heatmap_data, schools, district_gdf, common_bounds,
-                   hover_grids, grid_meta, network_geojsons)
+    # 9. Load residential property centroids (optional layer)
+    print("\n[9/10] Loading residential property centroids ...")
+    property_points = []
+    centroids_path = PROJECT_ROOT / "data" / "raw" / "properties" / "combined_data_centroids.gpkg"
+    if centroids_path.exists():
+        centroids_gdf = gpd.read_file(centroids_path)
+        # Clip to district boundary
+        centroids_gdf = gpd.clip(centroids_gdf, district_gdf.to_crs(centroids_gdf.crs))
+        for _, row in centroids_gdf.iterrows():
+            pt = row.geometry
+            sale_dt = row.get("sale_date")
+            sale_str = str(sale_dt.date()) if pd.notna(sale_dt) else None
+            property_points.append({
+                "lat": round(pt.y, 6),
+                "lon": round(pt.x, 6),
+                "pin": row.get("PIN"),
+                "luc": row.get("primary_luc"),
+                "imp_vac": row.get("imp_vac"),
+                "valuation": int(row["VALUATION"]) if pd.notna(row.get("VALUATION")) else None,
+                "sqft": int(row["SQFT"]) if pd.notna(row.get("SQFT")) and row.get("SQFT") else None,
+                "year_built": int(row["YEARBUILT"]) if pd.notna(row.get("YEARBUILT")) and row.get("YEARBUILT") else None,
+                "acres": round(float(row["CALC_ACRES"]), 2) if pd.notna(row.get("CALC_ACRES")) else None,
+                "sale_date": sale_str,
+                "sale_price": int(row["sale_price"]) if pd.notna(row.get("sale_price")) else None,
+                "years_since_sale": int(row["years_since_sale"]) if pd.notna(row.get("years_since_sale")) else None,
+                "subdivision": row.get("SUBDIVISIO") if pd.notna(row.get("SUBDIVISIO")) else None,
+                "condo_name": row.get("CONDONAME") if pd.notna(row.get("CONDONAME")) else None,
+                "appraised_value": int(row["appraised_value"]) if pd.notna(row.get("appraised_value")) else None,
+            })
+        _progress(f"  Loaded {len(property_points):,} residential centroids")
+    else:
+        centroids_gdf = None
+        print("  (No centroids file found — run property_data.py first)")
 
-    map_path = ASSETS_MAPS / "school_desert_map.html"
+    # 10. Snap property centroids to grid → compute affected-household data
+    affected_charts = None
+    if centroids_gdf is not None and len(centroids_gdf) > 0:
+        print("\n[10/11] Computing affected-household histograms ...")
+        # Build cKDTree from grid lat/lon (with cosine-latitude scaling)
+        grid_lats_arr = grid["lat"].values
+        grid_lons_arr = grid["lon"].values
+        grid_ids_arr = grid["grid_id"].values
+        _mean_lat = grid_lats_arr.mean()
+        _cos_lat = np.cos(np.radians(_mean_lat))
+        grid_coords_scaled = np.column_stack([grid_lons_arr * _cos_lat, grid_lats_arr])
+        grid_tree = cKDTree(grid_coords_scaled)
+
+        # Query each property centroid
+        prop_lats = np.array([g.y for g in centroids_gdf.geometry])
+        prop_lons = np.array([g.x for g in centroids_gdf.geometry])
+        prop_scaled = np.column_stack([prop_lons * _cos_lat, prop_lats])
+        _, nearest_idx = grid_tree.query(prop_scaled)
+        centroids_gdf = centroids_gdf.copy()
+        centroids_gdf["grid_id"] = grid_ids_arr[nearest_idx]
+        _progress(f"  Snapped {len(centroids_gdf):,} centroids to nearest grid points")
+
+        # Compute affected parcels per (scenario, mode)
+        affected_data = {}
+        for scenario_name, closed_schools in SCENARIOS.items():
+            if scenario_name == "baseline":
+                continue
+            for mode in modes:
+                mask = (
+                    (scores_df["scenario"] == scenario_name)
+                    & (scores_df["mode"] == mode)
+                    & (scores_df["delta_minutes"] > 0)
+                )
+                affected_grid_ids = set(scores_df.loc[mask, "grid_id"].values)
+                affected_parcels = centroids_gdf[centroids_gdf["grid_id"].isin(affected_grid_ids)]
+                count = len(affected_parcels)
+                values = affected_parcels["assessed_value"].dropna().values
+                years = affected_parcels["years_since_sale"].dropna().values
+                key = f"{scenario_name}|{mode}"
+                affected_data[key] = {"count": count, "values": values, "years": years}
+                _progress(f"  {key}: {count:,} affected parcels")
+
+        affected_charts = _render_affected_charts(affected_data)
+        _progress(f"  Rendered {len(affected_charts)} chart sets")
+
+    # 10b. Walk-zone household histograms
+    walk_zone_charts = None
+    if centroids_gdf is not None and len(centroids_gdf) > 0 and walk_zones_gdf is not None:
+        print("\n[10b/11] Computing walk-zone household histograms ...")
+        # Spatial join centroids against walk-zone polygons
+        centroids_wgs = centroids_gdf.to_crs(CRS_WGS84) if centroids_gdf.crs != CRS_WGS84 else centroids_gdf
+        wz_joined = gpd.sjoin(centroids_wgs, walk_zones_gdf[["school_name", "geometry"]], how="left", predicate="within")
+        _progress(f"  {wz_joined['school_name'].notna().sum():,} parcels fall within a walk zone")
+
+        walk_zone_data = {}
+        for scenario_name, closed_schools in SCENARIOS.items():
+            if scenario_name == "baseline":
+                continue
+            # Parcels in the walk zone of any closed school
+            wz_parcels = wz_joined[wz_joined["school_name"].isin(closed_schools)]
+            count = len(wz_parcels)
+            if count > 0:
+                values = wz_parcels["assessed_value"].dropna().values
+                years = wz_parcels["years_since_sale"].dropna().values
+            else:
+                values = np.array([])
+                years = np.array([])
+            walk_zone_data[scenario_name] = {"count": count, "values": values, "years": years}
+            _progress(f"  {scenario_name}: {count:,} walk-zone parcels")
+
+        walk_zone_charts = _render_affected_charts(walk_zone_data, style="walkzone")
+        _progress(f"  Rendered {len(walk_zone_charts)} walk-zone chart sets")
+
+    # 11. Create interactive map
+    print("\n[11/11] Creating interactive map ...")
+    m = create_map(heatmap_data, schools, district_gdf, common_bounds,
+                   hover_grids, grid_meta, network_geojsons,
+                   property_points=property_points,
+                   affected_charts=affected_charts,
+                   walk_zones_geojson=walk_zones_geojson,
+                   walk_zone_charts=walk_zone_charts)
+
+    map_path = ASSETS_MAPS / "school_community_map.html"
     m.save(str(map_path))
     _progress(f"Saved map to {map_path}")
 

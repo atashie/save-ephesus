@@ -2,7 +2,7 @@
 
 ## Overview
 
-The school desert analysis (`src/school_desert.py`) quantifies how school closures affect travel times across the Chapel Hill-Carrboro City Schools (CHCCS) district. For every 100-meter grid cell in the district, it computes the minimum travel time to the nearest open elementary school under seven scenarios: baseline (all 11 schools open) and six closure scenarios. The output is an interactive heatmap (`assets/maps/school_desert_map.html`) with scenario/mode switching and hover tooltips.
+The school desert analysis (`src/school_desert.py`) quantifies how school closures affect travel times across the Chapel Hill-Carrboro City Schools (CHCCS) district. For every 100-meter grid cell in the district, it computes the minimum travel time to the nearest open elementary school under seven scenarios: baseline (all 11 schools open) and six closure scenarios. The output is an interactive heatmap (`assets/maps/school_community_map.html`) with scenario/mode switching and hover tooltips.
 
 ---
 
@@ -258,7 +258,7 @@ All travel time calculations are based on 2D network distance. Hill gradients, w
 
 | File | Description |
 |------|-------------|
-| `assets/maps/school_desert_map.html` | Interactive map with all scenarios, modes, and layers |
+| `assets/maps/school_community_map.html` | Interactive map with all scenarios, modes, and layers |
 | `data/processed/school_desert_grid.csv` | Raw data: 339,675 rows (16,175 grid points × 7 scenarios × 3 modes) |
 | `data/cache/school_desert_tiffs/*.tif` | GeoTIFF rasters (WGS84) for each scenario/mode/layer combination |
 | `data/cache/nces_school_locations.csv` | School coordinates (input) |

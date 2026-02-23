@@ -333,10 +333,85 @@ python src/report_generator.py
 
 ---
 
+## Section 8: School Desert Analysis (February 2026)
+
+### Overview
+
+Interactive map (`school_community_map.html`) showing travel-time impacts of closing each elementary school, with affected-household histograms that update per scenario and travel mode.
+
+### Workflow
+
+1. **Load schools** — NCES EDGE 2023-24 locations (11 schools, cached at `data/cache/nces_school_locations.csv`)
+2. **Load district boundary** — Census TIGER/Line GEOID 3700720 (cached as GeoPackage)
+3. **Download road networks** — OSMnx drive/bike/walk graphs, cached as GraphML; reverse edges added for bidirectional traversal
+4. **Dijkstra from each school** — 33 runs (11 schools × 3 modes), each exploring the full graph (no cutoff)
+5. **Create grid** — 100 m resolution point grid inside district polygon (~16K points); school locations injected as zero-time anchor points
+6. **Edge-snap grid points** — Each grid point snaps to the nearest road edge via Shapely STRtree (not just nearest node); travel time is interpolated along the matched edge using fractional position; off-network access leg adds time at a mode-specific fraction of modal speed (walk 90%, bike 80%, drive 20%)
+7. **Compute desert scores** — For each grid point × scenario × mode, take min travel time across open schools; delta = scenario time − baseline time
+8. **Rasterize** — Grid values projected onto a shared pixel grid (WGS84), gap-filled for UTM→WGS84 rotation artifacts, masked to district polygon; colorized with RdYlGn_r (absolute) or Oranges (delta); saved as GeoTIFF + base64 PNG for Leaflet image overlays
+9. **Load property centroids** — ~21K residential parcels from Orange County GIS (`combined_data_centroids.gpkg`), clipped to district boundary
+10. **Snap centroids to grid** — cKDTree with cos(lat) longitude scaling; each parcel assigned its nearest `grid_id`
+11. **Compute affected parcels** — For each non-baseline scenario × mode, parcels whose grid point has `delta_minutes > 0` are "affected"
+12. **Render histograms** — Two matplotlib charts per scenario|mode: assessed value (blue, 25 bins) and years since sale (green, 25 bins), each with a red dashed median line; encoded as base64 PNGs
+13. **Build map** — Folium map with all overlays + JS switching; chart panel occupies bottom 35vh of viewport and updates on scenario/mode change
+
+### Definition of "Affected"
+
+A residential parcel is **affected** if its nearest grid point has `delta_minutes > 0` for the selected closure scenario + travel mode. This means closing that school increased travel time to the nearest remaining school at that location.
+
+### Assumptions
+
+| Assumption | Rationale |
+|-----------|-----------|
+| Static travel speeds (no real-time traffic, no turn penalties) | Consistent, reproducible model; effective speeds already discount for signals/stops via HCM6 ratios |
+| Walk speed 2.5 mph for all K-5 | Mid-range of MUTCD/FHWA measurements for school-age children |
+| Effective drive speeds 65-92% of posted | HCM6 Ch.16 and FHWA Urban Arterial Speed Studies |
+| Off-network access leg at reduced speed (walk 90%, bike 80%, drive 20%) | Walking/biking to the road is nearly full-speed; driving off-network (driveways, lots) is much slower |
+| Grid points >200 m from any road are unreachable | 2× grid resolution; filters lakes, large parks, undeveloped land |
+| All remaining schools absorb displaced students | No capacity constraints modeled |
+| Binary affected definition (delta > 0) | Simple, transparent; does not weight by magnitude of increase |
+| Parcel-to-grid snapping uses Euclidean nearest point | Not network distance; acceptable at 100 m grid resolution |
+
+### Limitations
+
+- **No capacity constraints:** The model assumes every remaining school can absorb displaced students. In practice, some schools may be full.
+- **No turn penalties or intersection delays:** Dijkstra uses edge-level travel times only; left-turn delays, traffic signals, and stop signs are approximated by the effective speed reduction but not modeled explicitly.
+- **Tax-record lag:** Assessed values are from the latest Orange County tax records and may not reflect current market values.
+- **Sale date coverage:** `years_since_sale` reflects the most recent recorded deed transfer. Properties with no recorded sale are excluded from that histogram (shown as NaN).
+- **Static road network:** The OSM snapshot is fixed at download time. Road construction or closures after download are not reflected.
+- **No school-choice or magnet effects:** The model assumes families attend their geographically nearest school. Magnet, charter, and school-choice assignments are not modeled.
+
+### Key Outputs
+
+| Output | Description |
+|--------|-------------|
+| `assets/maps/school_community_map.html` | Interactive map: heatmap + road network + property parcels + affected-household histograms |
+| `data/processed/school_desert_grid.csv` | ~340K rows: grid_id × scenario × mode with travel times and deltas |
+| `data/cache/school_desert_tiffs/` | GeoTIFF rasters for each scenario/mode/layer |
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `src/school_desert.py` | `_render_affected_charts()` function; grid-snapping + affected-data computation in `main()`; `affected_charts` parameter threaded through `create_map()` → `_build_control_html()`; CSS/HTML/JS for chart panel below map |
+
+### Affected Household Counts (February 2026 baseline)
+
+| Scenario | Drive | Bike | Walk |
+|----------|-------|------|------|
+| Close Ephesus | 3,216 | 2,712 | 2,244 |
+| Close Glenwood | 838 | 551 | 909 |
+| Close FPG | 2,566 | 1,366 | 1,336 |
+| Close Estes Hills | 3,144 | 3,412 | 3,914 |
+| Close Seawell | 1,914 | 2,431 | 2,139 |
+| Close Ephesus + Glenwood | 4,054 | 3,263 | 3,153 |
+
+---
+
 ## Attribution
 
 This report was developed with assistance from Claude (Anthropic) for data organization, visualization code, and document drafting. All claims have been independently verified against official sources.
 
 ---
 
-*Last updated: January 29, 2026*
+*Last updated: February 23, 2026*
