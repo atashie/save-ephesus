@@ -1181,9 +1181,8 @@ def create_pollution_chart(df: pd.DataFrame):
     raw_vals = df_sorted["raw_500m"].values
     net_vals = df_sorted["net_500m"].values
 
-    # Colors: Ephesus in red, others gray
-    raw_colors = [EPHESUS_COLOR if "Ephesus" in s else "#7f8c8d" for s in schools]
-    net_colors = [EPHESUS_COLOR if "Ephesus" in s else "#2c3e50" for s in schools]
+    raw_colors = "#7f8c8d"
+    net_colors = "#2c3e50"
 
     bars_raw = ax.bar(x - width/2, raw_vals, width,
                       label="Raw Pollution Index", color=raw_colors, alpha=0.5)
@@ -1198,10 +1197,6 @@ def create_pollution_chart(df: pd.DataFrame):
         ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.3,
                 f"{val:.1f}", ha="center", va="bottom", fontsize=7)
 
-    # Highlight Ephesus column
-    for i, s in enumerate(schools):
-        if "Ephesus" in s:
-            ax.axvspan(i - 0.5, i + 0.5, alpha=0.1, color=EPHESUS_COLOR, zorder=0)
 
     ax.set_xticks(x)
     ax.set_xticklabels(short_names, fontsize=9, rotation=45, ha="right")
