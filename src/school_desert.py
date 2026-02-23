@@ -282,7 +282,7 @@ def _graph_to_geojson(G: nx.MultiDiGraph) -> dict:
     Uses actual edge ``geometry`` attribute (curved road shapes from OSMnx
     simplification) when available; falls back to straight line between
     endpoint nodes.  Deduplicates bidirectional edges (keeps one direction
-    per node pair).  Rounds coordinates to 5 decimal places (~1 m precision)
+    per node pair).  Rounds coordinates to 4 decimal places (~11 m precision)
     to reduce file size.
     """
     seen = set()
@@ -294,11 +294,11 @@ def _graph_to_geojson(G: nx.MultiDiGraph) -> dict:
         seen.add(edge_key)
 
         if "geometry" in data:
-            coords = [[round(c[0], 5), round(c[1], 5)]
+            coords = [[round(c[0], 4), round(c[1], 4)]
                       for c in data["geometry"].coords]
         else:
-            u_x, u_y = round(G.nodes[u]["x"], 5), round(G.nodes[u]["y"], 5)
-            v_x, v_y = round(G.nodes[v]["x"], 5), round(G.nodes[v]["y"], 5)
+            u_x, u_y = round(G.nodes[u]["x"], 4), round(G.nodes[u]["y"], 4)
+            v_x, v_y = round(G.nodes[v]["x"], 4), round(G.nodes[v]["y"], 4)
             coords = [[u_x, u_y], [v_x, v_y]]
 
         features.append({
