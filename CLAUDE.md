@@ -90,6 +90,7 @@ save_ephesus/
 │   ├── report_generator.py      # HTML/PDF report
 │   ├── school_desert.py         # Travel-time & affected-household analysis
 │   ├── road_pollution.py        # TRAP / tree canopy spatial analysis
+│   ├── flood_map.py             # FEMA flood plain × school property map
 │   ├── data_processing.py       # Shared data loading utilities
 │   ├── childcare_geocode.py     # Childcare proximity analysis
 │   └── property_data.py         # Orange County parcel data processing
@@ -99,6 +100,7 @@ save_ephesus/
 │   └── maps/                   # Interactive HTML maps
 │       ├── school_community_map.html        # School closure scenario explorer
 │       ├── road_pollution_combined_map.html  # TRAP + tree canopy layers
+│       ├── flood_school_properties.png      # FEMA flood plain × school properties
 │       └── ...                           # Additional map outputs
 ├── templates/
 │   └── report_template.html     # Final report HTML
@@ -111,6 +113,7 @@ save_ephesus/
 │   ├── cache/                       # Downloaded/cached data (not committed)
 │   │   ├── nces_school_locations.csv  # NCES EDGE school coordinates
 │   │   ├── chccs_district_boundary.gpkg
+│   │   ├── fema_flood_zones.gpkg      # FEMA NFHL flood hazard polygons
 │   │   ├── network_*.graphml         # OSM road networks (drive/bike/walk)
 │   │   └── school_desert_tiffs/      # GeoTIFF rasters per scenario/mode
 │   └── processed/
@@ -145,6 +148,11 @@ python src/school_desert.py
 
 # Run TRAP / tree canopy analysis
 python src/road_pollution.py
+
+# Generate FEMA flood plain × school property map (static PNG)
+# Requires: NCES school locations, Orange County parcel data
+# Outputs:  assets/maps/flood_school_properties.png
+python src/flood_map.py
 
 # Process Orange County parcel data → centroids GeoPackage
 python src/property_data.py

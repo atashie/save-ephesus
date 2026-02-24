@@ -4,6 +4,50 @@ This document captures the implementation details, research findings, and verifi
 
 ---
 
+## Flood Plain Analysis (February 2026)
+
+### Overview
+
+Added FEMA flood plain overlay on school property parcels to show FPG has the most significant flood exposure of any CHCCS elementary school.
+
+### Key Findings
+
+| School | 100-yr Overlap | % of Property |
+|--------|---------------|---------------|
+| FPG Bilingue | 2.59 acres | 26% of 9.8 ac |
+| Rashkis | 1.22 acres | 7% of 17.14 ac |
+| All others | 0 | 0% |
+
+### Data Sources
+
+- **Flood zones:** FEMA National Flood Hazard Layer (NFHL), layer 28 (S_FLD_HAZ_AR), queried via ArcGIS REST API with 3x3 tiled bbox requests
+- **School properties:** Orange County parcel data (`combined_data_polys.gpkg`), matched by which parcel contains each school's NCES coordinate point
+- **School locations:** `data/cache/nces_school_locations.csv` (NCES EDGE 2023-24)
+
+### Files Created
+
+| File | Purpose |
+|------|---------|
+| `src/flood_map.py` | Standalone script: downloads FEMA data, identifies school parcels, computes overlaps, renders two-panel PNG |
+| `assets/maps/flood_school_properties.png` | Two-panel map: district overview + FPG zoom detail |
+| `data/cache/fema_flood_zones.gpkg` | Cached FEMA flood zone polygons (1,123 features) |
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `CLAUDE.md` | Added flood_map.py to file structure and commands |
+| `docs/RESEARCH_DATA.md` | Added Flood Plain Data section with overlap table |
+| `docs/IMPLEMENTATION_NOTES.md` | This section |
+
+### Technical Notes
+
+- FEMA API (`hazards.fema.gov/arcgis/...`) errors on large bounding boxes; solved by tiling into 3x3 sub-bboxes
+- Some FEMA polygons have invalid geometry; fixed with `make_valid()` before `unary_union`
+- School parcels are owned by various entities (school board, Orange County, Town of Chapel Hill); identified by spatial containment of NCES point rather than owner name filtering
+
+---
+
 ## Section 0: Teacher Survey Integration (January 2026)
 
 ### Overview

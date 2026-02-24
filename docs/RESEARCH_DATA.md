@@ -202,6 +202,7 @@ KEEP EPHESUS (Long-term):
 | Facility Assessment | George Griffin Substack | https://georgegriffin.substack.com/ |
 | Bond Decision Framework | 2024 Bond Presentation | data/processed/bond_presentation_2024.md |
 | Teacher Working Conditions | NC TWC Survey 2024 | https://nctwcs.org/ |
+| Flood Hazard Areas | FEMA NFHL (ArcGIS REST) | https://hazards.fema.gov/arcgis/rest/services/public/NFHL/MapServer |
 
 ---
 
@@ -273,6 +274,25 @@ Ephesus is not among the most pollution-exposed schools at the 500m radius. Howe
 
 ---
 
+## Flood Plain Data (FEMA NFHL)
+
+### School Property × Flood Zone Overlap
+
+| School | 100-yr Overlap (acres) | % of Property | 500-yr Overlap (acres) | % of Property |
+|--------|----------------------|---------------|----------------------|---------------|
+| **FPG Bilingue** | **2.59** | **26%** | **0.16** | **2%** |
+| Rashkis | 1.22 | 7% | 0.82 | 5% |
+| All other schools | 0 | 0% | 0 | 0% |
+
+FPG has the most significant flood plain exposure of any CHCCS elementary school — over a quarter of its 9.8-acre property sits in the FEMA 100-year flood zone (Zone AE).
+
+**Source:** FEMA National Flood Hazard Layer (NFHL), queried via ArcGIS REST API (layer 28 — S_FLD_HAZ_AR)
+**School properties:** Orange County parcel data (parcel containing NCES school point)
+**Map:** `assets/maps/flood_school_properties.png`
+**Script:** `src/flood_map.py`
+
+---
+
 ## Data Collection Status
 
 - [x] NC School Report Card data - Ephesus = 85.8, #4
@@ -284,6 +304,7 @@ Ephesus is not among the most pollution-exposed schools at the 500m radius. Howe
 - [x] Walkability data - 99 students within 0.5 miles (verified)
 - [x] Teacher survey data - NC TWC Survey 2024 (43 respondents)
 - [x] Road pollution exposure analysis - TRAP index for all 11 schools
+- [x] Flood plain analysis - FEMA NFHL overlay on school properties
 
 ---
 
