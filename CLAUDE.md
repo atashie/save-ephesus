@@ -57,6 +57,10 @@ Persuasive PDF report for the CHCCS Board of Education arguing for keeping Ephes
 > **See `data/processed/safe_routes_analysis.md` for walkability data and infrastructure plans.**
 >
 > **See `data/processed/enrollment_history.csv` for 35-year enrollment data (1990-2024) for all 11 schools, with sources in `enrollment_history_sources.md`.**
+>
+> **See `SCHOOL_DESERT_ANALYSIS_AND_LIMITATIONS.md` for school desert methodology and 13 known limitations.**
+>
+> **See `SOCIOECONOMIC_ANALYSIS_AND_LIMITATIONS.md` for Census demographics methodology and 26 known limitations.**
 
 ---
 
@@ -84,6 +88,8 @@ Persuasive PDF report for the CHCCS Board of Education arguing for keeping Ephes
 ```
 save_ephesus/
 ├── CLAUDE.md                    # This file - project guide
+├── SCHOOL_DESERT_ANALYSIS_AND_LIMITATIONS.md  # School desert methodology & limitations
+├── SOCIOECONOMIC_ANALYSIS_AND_LIMITATIONS.md  # Census demographics methodology & limitations
 ├── requirements.txt
 ├── src/
 │   ├── visualizations.py        # Chart generation (report figures)
@@ -93,6 +99,7 @@ save_ephesus/
 │   ├── flood_map.py             # FEMA flood plain × school property map
 │   ├── data_processing.py       # Shared data loading utilities
 │   ├── childcare_geocode.py     # Childcare proximity analysis
+│   ├── school_socioeconomic_analysis.py  # Census demographics by attendance zone
 │   └── property_data.py         # Orange County parcel data processing
 ├── assets/
 │   ├── charts/                  # Generated report charts (PNG)
@@ -101,6 +108,7 @@ save_ephesus/
 │       ├── school_community_map.html        # School closure scenario explorer
 │       ├── road_pollution_combined_map.html  # TRAP + tree canopy layers
 │       ├── flood_school_properties.png      # FEMA flood plain × school properties
+│       ├── school_socioeconomic_map.html   # Census demographics + attendance zones
 │       └── ...                           # Additional map outputs
 ├── templates/
 │   └── report_template.html     # Final report HTML
@@ -115,18 +123,24 @@ save_ephesus/
 │   │   ├── chccs_district_boundary.gpkg
 │   │   ├── fema_flood_zones.gpkg      # FEMA NFHL flood hazard polygons
 │   │   ├── network_*.graphml         # OSM road networks (drive/bike/walk)
+│   │   ├── census_acs_blockgroups.gpkg  # ACS 5-Year block group data + geometry
+│   │   ├── census_decennial_blocks.gpkg # 2020 Decennial block race data + geometry
 │   │   └── school_desert_tiffs/      # GeoTIFF rasters per scenario/mode
 │   └── processed/
 │       ├── school_desert_grid.csv     # Grid travel times (all scenarios/modes)
 │       ├── bond_presentation_2024.md  # Bond decision framework
 │       ├── teacher_survey_analysis.md # Teacher survey findings
 │       ├── enrollment_history.csv     # 35-year enrollment (1990-2024)
-│       └── enrollment_history_sources.md # Data sources for enrollment
+│       ├── enrollment_history_sources.md # Data sources for enrollment
+│       ├── census_school_demographics.csv # Per-school-zone Census demographics
+│       └── census_blockgroup_profiles.csv # Block group demographic profiles
 └── docs/
     ├── key_messages.md          # Talking points and sound bites
     ├── RESEARCH_DATA.md         # Detailed data tables and sources
     ├── IMPLEMENTATION_NOTES.md  # Changelog and verification status
-    └── executive_summary.md
+    ├── executive_summary.md
+    └── socioeconomic/
+        └── SOCIOECONOMIC_ANALYSIS.md  # Census demographics methodology & results
 ```
 
 ---
@@ -156,6 +170,13 @@ python src/flood_map.py
 
 # Process Orange County parcel data → centroids GeoPackage
 python src/property_data.py
+
+# Run socioeconomic analysis (Census demographics by attendance zone)
+# Requires: NCES school locations, CHCCS attendance zone shapefile, district boundary
+# Outputs:  assets/maps/school_socioeconomic_map.html,
+#           data/processed/census_school_demographics.csv,
+#           docs/socioeconomic/SOCIOECONOMIC_ANALYSIS.md
+python src/school_socioeconomic_analysis.py
 ```
 
 ---

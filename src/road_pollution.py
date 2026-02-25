@@ -1214,6 +1214,7 @@ def create_pollution_chart(df: pd.DataFrame):
     ax.set_axisbelow(True)
 
     plt.tight_layout()
+    plt.subplots_adjust(bottom=0.22)
     path = ASSETS_CHARTS / "road_pollution_comparison.png"
     plt.savefig(path, dpi=150, bbox_inches="tight")
     plt.close()

@@ -452,10 +452,51 @@ A residential parcel is **affected** if its nearest grid point has `delta_minute
 
 ---
 
+## Section 9: Socioeconomic Analysis (February 2026)
+
+### Overview
+
+Census-based demographic analysis of CHCCS elementary school attendance zones using ACS 5-Year block group estimates and 2020 Decennial block-level race data, with dasymetric areal interpolation weighted by residential parcel area. Produces per-zone demographic summaries, an interactive Folium map, static comparison charts, and auto-generated methodology documentation.
+
+### Key Features
+
+- **7 choropleth layers** (block level): median income, % below 185% poverty, % minority, % renter, % zero-vehicle, % elementary age 5-9, % young children 0-4
+- **1:1 dot-density race layer** (~95,764 dots) with dasymetric placement constrained to residential parcels
+- **5 zone types** with radio-button switching: School Zones (10 attendance zones), Walk Zones (7 CHCCS walk zones), Nearest Walk (11 Voronoi-like zones), Nearest Bike (11), Nearest Drive (11)
+- **Per-zone barplots and histograms** rendered in a sidebar panel, updating on zone type and school selection
+- **Batch JS rendering** for dot-density (compact array + for-loop, Canvas renderer)
+
+### Files Created
+
+| File | Purpose |
+|------|---------|
+| `src/school_socioeconomic_analysis.py` | Main module (~2,860 lines): Census API download, spatial analysis, dasymetric interpolation, dot-density generation, Folium map, charts, auto-docs |
+| `SOCIOECONOMIC_ANALYSIS_AND_LIMITATIONS.md` | Methodology documentation with 26 numbered limitations |
+| `assets/maps/school_socioeconomic_map.html` | Interactive Folium map with choropleth, dot-density, and 5 zone type overlays |
+| `assets/charts/socioeconomic_*.png` | 7 horizontal bar charts + 1 income distribution chart |
+| `data/processed/census_school_demographics.csv` | Per-school-zone demographic summaries (10 schools, ~20 metrics) |
+| `data/processed/census_blockgroup_profiles.csv` | Block-group-level derived metrics within district |
+| `docs/socioeconomic/SOCIOECONOMIC_ANALYSIS.md` | Auto-generated methodology and results documentation |
+
+### Bug Fix: Orphan Brace in JavaScript
+
+Removed an orphan `}}` brace (was at line 2084) left over from removing the "Show Zones" checkbox toggle. This extra brace prematurely closed the `DOMContentLoaded` event listener, which caused:
+- Per-zone barplots and histograms to never render (the chart-rendering code was outside the listener scope)
+- The map title to fade/disappear (title-injection code was also outside the listener)
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `CLAUDE.md` | Added socioeconomic analysis to file structure, commands, and cross-references |
+| `src/road_pollution.py` | Fixed chart layout (`plt.subplots_adjust` for road pollution comparison chart) |
+
+---
+
 ## Attribution
 
 This report was developed with assistance from Claude (Anthropic) for data organization, visualization code, and document drafting. All claims have been independently verified against official sources.
 
 ---
 
-*Last updated: February 23, 2026*
+*Last updated: February 25, 2026*
